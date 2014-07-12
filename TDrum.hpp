@@ -24,7 +24,7 @@ protected:
   std::map<Sample *, Sample *> samples;
 
 public:
-  bool loadSample(std::string path);
+  bool loadSample(const std::string &path);
 };
 
 
@@ -32,6 +32,9 @@ class Instrument
 {
 protected:
   std::vector<const Sample *> samples;
+
+public:
+  bool loadSample(const std::string &path);
 };
 
 class PlayingSample

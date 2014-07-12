@@ -1,4 +1,4 @@
-OBJECTS = tdrum_wrap.o
+OBJECTS = tdrum_wrap.o TDrum.o
 
 PYTHON=python2.7
 
@@ -17,5 +17,8 @@ LD_FLAGS = -shared $(PYTHON_LDFLAGS)
 _tdrum.so: $(OBJECTS)
 	g++ $(LD_FLAGS) -o $@ $(OBJECTS) 
 
+clean:
+	rm $(OBJECTS) _tdrum.so
+.PHONY: clean
 
 -include $(OBJECTS:%.o=%.d)

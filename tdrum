@@ -4,3 +4,9 @@
 import tdrum
 
 core = tdrum.Core()
+instr = tdrum.Instrument()
+instr.loadSample("/lhome/tower/src/tdrum/Makefile")
+core.addInstrument(10, instr)
+
+print "done"
+
