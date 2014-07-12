@@ -1,0 +1,6 @@
+#!/usr/bin/env python
+# -*-python-*-
+
+import tdrum
+
+core = tdrum.Core()
