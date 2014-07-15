@@ -1,4 +1,4 @@
-OBJECTS = tdrum_wrap.o TDrum.o
+OBJECTS = tdrum_wrap.o TDrum.o Notify.o MidiMessage.o
 
 PYTHON=python2.7
 
@@ -13,7 +13,9 @@ PYTHON_CXXFLAGS = -I/usr/include/$(PYTHON)
 CXXFLAGS = -Wall -std=c++11 -MMD -fPIC $(PYTHON_CXXFLAGS)
 
 PYTHON_LDFLAGS = -l$(PYTHON)
-LD_FLAGS = -shared $(PYTHON_LDFLAGS)
+SNDFILE_LDFLAGS = -lsndfile
+JACK_LDFLAGS = -ljack
+LD_FLAGS = -shared $(PYTHON_LDFLAGS) $(SNDFILE_LDFLAGS) $(JACK_LDFLAGS)
 _tdrum.so: $(OBJECTS)
 	g++ $(LD_FLAGS) -o $@ $(OBJECTS) 
 
