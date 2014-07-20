@@ -1,0 +1,16 @@
+#!/usr/bin/env python
+# -*-python-*-
+
+import time
+
+import midiout
+
+mo = midiout.midiout()
+mo.connectJack()
+
+def play_notes(iterations, pause_time, notes):
+    for i in xrange(iterations):
+        for (n, v) in notes:
+            mo.playNote(n, v)
+        time.sleep(pause_time)
+

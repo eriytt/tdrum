@@ -2,6 +2,7 @@
 #define TDRUM_HPP
 #include <map>
 #include <vector>
+#include <list>
 
 #include <jack/jack.h>
 #include <jack/midiport.h>
@@ -18,16 +19,19 @@ protected:
   void decRef();
 
 public:
-  Sample(jack_default_audio_sample_t *data, size_t size) : sample_data(data), sample_length(size) {}
+  Sample(jack_default_audio_sample_t *data, size_t size) : refcount(0), sample_data(data), sample_length(size) {}
   size_t size() const;
   jack_default_audio_sample_t getFrame(jack_nframes_t frame) const;
 };
 
-class RoundRobinSample
+class RoundRobinSample : public std::vector<const Sample *>
 {
 protected:
   unsigned int current_sample;
-  std::vector<Sample> samples;
+
+public:
+  RoundRobinSample() : current_sample(0) {}
+  const Sample *getNextSample();
 };
 
 class SampleRegistry
@@ -40,13 +44,14 @@ protected:
 class Instrument
 {
 protected:
-  std::vector<const Sample *> samples;
+  std::map< unsigned char, RoundRobinSample > samples;
+  std::list<unsigned char> velocities;
 
 protected:
-  void addSample(const Sample *sample);
+  void addSample(const Sample *sample, unsigned char velocity);
 
 public:
-  bool loadSample(const std::string &path);
+  bool loadSample(const std::string &path, unsigned char velocity);
   const Sample *getSampleForVelocity(unsigned char velocity);
 };
 
@@ -57,17 +62,19 @@ protected:
   const Sample *sample;
 
 public:
-  PlayingSample(const Sample *sample) : current_position(0), sample(sample) {}
+  PlayingSample(const Sample *sample);
   jack_default_audio_sample_t getNextFrame();
   bool isDone() const;
+  const Sample *getSamplePtr() {return sample;}
+  const PlayingSample *getPtr() {return this;}
 };
 
 class Core
 {
 protected:
-  std::map<unsigned short, Instrument*> keyToInstrument;
+  std::map<unsigned short, Instrument*> noteToInstrument;
   // TODO: vector is a bad choice here because erase is very inefficient.
-  std::vector<PlayingSample> playing_samples;
+  std::list<PlayingSample> playing_samples;
 
   SampleRegistry registry;
 
@@ -82,12 +89,12 @@ protected:
 
 protected:
   // Sound engine stuff
-  void mixInstrument(unsigned short key, unsigned char velocity);
+  void mixInstrument(unsigned short note, unsigned char velocity);
   void mix(jack_nframes_t nframes, jack_default_audio_sample_t *dest_buf);
 
 public:
   Core(): jack_client(nullptr), midi_input_port(nullptr), audio_output_port(nullptr) {}
-  void addInstrument(unsigned short key, Instrument* instr);
+  void addInstrument(unsigned short note, Instrument* instr);
   bool registerJack();
 };
 
