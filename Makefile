@@ -1,4 +1,5 @@
-OBJECTS = tdrum_wrap.o TDrum.o Notify.o MidiMessage.o
+OBJECTS = tdrum_wrap.o TDrum.o Notify.o MidiMessage.o \
+          PlayingSample.o Sample.o  Instrument.o
 
 PYTHON=python2.7
 
@@ -30,7 +31,7 @@ _midiout.so: midiout_wrap.o
 	g++ -shared $(JACK_LDFLAGS) $(PYTHON_LDFLAGS) MidiMessage.o -o $@ $< 	
 
 clean:
-	rm $(OBJECTS) _tdrum.so
+	rm -f $(OBJECTS) _tdrum.so tdrum_wrap.cpp
 .PHONY: clean
 
 
