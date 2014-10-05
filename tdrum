@@ -19,17 +19,46 @@ def new_instrument(note, samples):
         i.loadSample(filename, velocity)
 
     core.addInstrument(note, i)
+    return i
 
-new_instrument(10, [(64, pjoin(sample_dir, "Kick Drum Multi-Samples", "F065.wav")),
-                    (65, pjoin(sample_dir, "Kick Drum Multi-Samples", "F066.wav"))])
+kick = new_instrument(10, [(64, pjoin(sample_dir, "Kick Drum Multi-Samples", "F065.wav")),
+                           (65, pjoin(sample_dir, "Kick Drum Multi-Samples", "F066.wav"))])
 
-new_instrument(11, [(64, pjoin(sample_dir, "Cymbal Multi-Samples", "01  12ACSM   [s].wav")),
-                    (64, pjoin(sample_dir, "Cymbal Multi-Samples", "02  12ACSM   [s].wav")),
-                    (64, pjoin(sample_dir, "Cymbal Multi-Samples", "03  12ACSM   [s].wav"))])
+# crash1 = new_instrument(11, [(64, pjoin(sample_dir, "Cymbal Multi-Samples", "01  12ACSM   [s].wav")),
+#                              (64, pjoin(sample_dir, "Cymbal Multi-Samples", "02  12ACSM   [s].wav")),
+#                              (64, pjoin(sample_dir, "Cymbal Multi-Samples", "03  12ACSM   [s].wav"))])
+crash1 = new_instrument(11, [(64, pjoin(sample_dir, "Cymbal Multi-Samples", "01  12ACSM   [s].wav"))])
 
-new_instrument(12, [(64, pjoin(sample_dir, "Cymbal Multi-Samples", "01  .8ACSM   [s].wav"))])
+crash2 = new_instrument(12, [(64, pjoin(sample_dir, "Cymbal Multi-Samples", "01  .8ACSM   [s].wav"))])
 
-print "Jack registration successful:", core.registerJack()
+kickf = tdrum.Fader("Kick")
+kick.setFader(kickf)
+
+crash1f = tdrum.Fader("Crash 1")
+crash1.setFader(crash1f)
+
+crash2f = tdrum.Fader("Crash 2")
+crash2.setFader(crash2f)
+
+master = tdrum.Fader("Master")
+master.addSource(kickf)
+master.addSource(crash1f)
+master.addSource(crash2f)
+kickf.setDownstream(master)
+crash1f.setDownstream(master)
+crash2f.setDownstream(master)
+
+core.addFader(kickf)
+core.addFader(crash1f)
+core.addFader(crash2f)
+core.addFader(master)
+
+crash1f.setGain(0.1)
+
+client = core.registerJack()
+print "Jack registration successful:", client != None
+
+master.registerJackPorts(client)
 
 try:
     while True:

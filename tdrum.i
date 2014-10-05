@@ -8,20 +8,27 @@
 #include "PlayingSample.hpp"
 %}
 
+%nodefault FaderSource;  // FaderSource is abstract thus has no constructor
+class FaderSource
+{
+};
+
+class Fader : public FaderSource
+{
+ public:
+  Fader(const std::string &name);
+  void addSource(FaderSource *src);
+%apply SWIGTYPE *DISOWN {Fader *fader};
+  void setDownstream(Fader *fader);
+  void setGain(float g);
+  void registerJackPorts(jack_client_t *client);
+};
+
 class Instrument
 {
  public:
   bool loadSample(const std::string &path, unsigned char velocity);
-};
-
-class Fader
-{
- public:
-  void addSource(FaderSource *src);
-  void unmarkMixed();
-%apply SWIGTYPE *DISOWN {Fader *fader};
-  void setDownstream(Fader *fader);
-  void setGain(float g);
+  void setFader(Fader *f);
 };
 
 class Core
@@ -29,5 +36,7 @@ class Core
  public:
 %apply SWIGTYPE *DISOWN {Instrument* instr};
   void addInstrument(unsigned short key, Instrument* instr);
-  bool registerJack();
+%apply SWIGTYPE *DISOWN {Fader* fader};
+  void addFader(Fader *fader);
+  jack_client_t *registerJack();
 };

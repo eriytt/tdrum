@@ -1,5 +1,5 @@
 OBJECTS = tdrum_wrap.o TDrum.o Notify.o MidiMessage.o \
-          PlayingSample.o Sample.o  Instrument.o
+          PlayingSample.o Sample.o  Instrument.o Fader.o
 
 PYTHON=python2.7
 

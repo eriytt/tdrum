@@ -23,7 +23,7 @@ void Core::mixInstrument(unsigned short note, unsigned char velocity, int offset
   if (not fader)
     return;
   const Sample *s = i->getSampleForVelocity(velocity);
-  
+
   //std::cout << "Adding sample to play" << std::endl;
   fader->addSource(new PlayingSample(s, offset, fader));
   // playing_samples.push_back(PlayingSample(s, offset, fader)); // TODO: move semantics
@@ -31,8 +31,12 @@ void Core::mixInstrument(unsigned short note, unsigned char velocity, int offset
 
 void Core::mix(jack_nframes_t nframes, jack_default_audio_sample_t *dest_buf)
 {
+  //std::cout << "Mixing callback" << std::endl;
   for (auto f : faders)
-    f->mix(nframes, nullptr, 1.0);
+    {
+      //std::cout << "Mixing fader " << f->getName() << std::endl;
+      f->mix(nframes, nullptr, 1.0);
+    }
 
   for (auto f : faders)
     f->unmarkMixed();
@@ -64,7 +68,7 @@ void Core::addInstrument(unsigned short note, Instrument* instr)
 
 // Jack handling methods
 
-bool Core::registerJack()
+jack_client_t *Core::registerJack()
 {
   jack_status_t open_status;
   if ((jack_client = jack_client_open ("TDrum", JackNoStartServer, &open_status)) == 0)
@@ -72,7 +76,7 @@ bool Core::registerJack()
       std::stringstream err;
       err << open_status;
       Notify::notify(Notify::NotifierType::ERROR, "connecting to jack", err.str().substr());
-      return false;
+      return nullptr;
     }
 
   //calc_note_frqs(jack_get_sample_rate (client));
@@ -91,7 +95,7 @@ bool Core::registerJack()
       std::stringstream err;
       err << jerr;
       Notify::notify(Notify::NotifierType::ERROR, "connecting to jack", err.str().substr());
-      return false;
+      return nullptr;
     }
 
   // /* run until interrupted */
@@ -102,7 +106,7 @@ bool Core::registerJack()
   // jack_client_close(jack_client);
   // exit (0);
 
-  return true;
+  return jack_client;
 }
 
 
@@ -133,7 +137,7 @@ inline int Core::jackProcess(jack_nframes_t nframes)
 
 
   jack_midi_event_t e;
-  jack_nframes_t last_event_time = 0;
+  //jack_nframes_t last_event_time = 0;
 
   for(uint32_t ei = 0; ei < nevents; ++ei)
     {

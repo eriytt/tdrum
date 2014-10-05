@@ -17,8 +17,8 @@ protected:
 
 public:
   Sample(jack_default_audio_sample_t *data, size_t size) : refcount(0), sample_data(data), sample_length(size) {}
-  size_t size() const;
-  jack_default_audio_sample_t getFrame(jack_nframes_t frame) const;
+  size_t size() const {return sample_length;}
+  jack_default_audio_sample_t getFrame(jack_nframes_t frame) const {return sample_data[frame];}
 };
 
 class RoundRobinSample : public std::vector<const Sample *>
