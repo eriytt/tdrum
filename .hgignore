@@ -1,0 +1,11 @@
+glob:*.pyc
+glob:*.d
+glob:*.o
+glob:*~
+glob:*_wrap.cpp
+_midiout.so
+_tdrum.so
+gdb.x
+.hgignore
+midiout.py
+tdrum.py
