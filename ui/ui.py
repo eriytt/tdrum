@@ -40,7 +40,7 @@ class TDrumUI(object):
 
     def new_instrument(self, widget):
         container = self.builder.get_object("fader_box")
-        instrument.Instrument.CreateNewInstrument(widget, container)
+        instrument.Instrument.CreateNewInstrument(widget, container, self.signal_proxy)
         return True
 
     def nofader_popup(self, widget, event):
