@@ -141,6 +141,7 @@
                   <object class="GtkEntry" id="instrument_name_entry">
                     <property name="visible">True</property>
                     <property name="can_focus">True</property>
+                    <signal name="changed" handler="name_changed" swapped="no"/>
                   </object>
                   <packing>
                     <property name="expand">True</property>
@@ -166,11 +167,14 @@
                     <property name="can_focus">False</property>
                     <property name="label_xalign">0</property>
                     <child>
-                      <object class="GtkScale" id="scale1">
+                      <object class="GtkScale" id="instrument_gain_scale">
                         <property name="visible">True</property>
                         <property name="can_focus">True</property>
                         <property name="orientation">vertical</property>
-                        <property name="round_digits">1</property>
+                        <property name="inverted">True</property>
+                        <property name="fill_level">1</property>
+                        <property name="round_digits">2</property>
+                        <property name="digits">2</property>
                       </object>
                     </child>
                     <child type="label">
@@ -203,6 +207,7 @@
                             <property name="can_focus">True</property>
                             <property name="receives_default">True</property>
                             <property name="use_stock">True</property>
+                            <signal name="clicked" handler="add_sample" swapped="no"/>
                           </object>
                           <packing>
                             <property name="expand">False</property>
@@ -217,6 +222,7 @@
                             <property name="can_focus">True</property>
                             <property name="receives_default">True</property>
                             <property name="use_stock">True</property>
+                            <signal name="clicked" handler="delete_sample" swapped="no"/>
                           </object>
                           <packing>
                             <property name="expand">False</property>
@@ -235,6 +241,8 @@
                       <object class="GtkTreeView" id="samples_treeview">
                         <property name="visible">True</property>
                         <property name="can_focus">True</property>
+                        <property name="activate_on_single_click">True</property>
+                        <signal name="row-activated" handler="activate_sample" swapped="no"/>
                         <child internal-child="selection">
                           <object class="GtkTreeSelection" id="treeview-selection1"/>
                         </child>
@@ -242,9 +250,13 @@
                           <object class="GtkTreeViewColumn" id="trig_level_column">
                             <property name="title" translatable="yes">Trig Level</property>
                             <child>
-                              <object class="GtkCellRendererSpin" id="cellrendererspin1"/>
+                              <object class="GtkCellRendererSpin" id="cellrendererspin1">
+                                <property name="editable">True</property>
+                                <signal name="edited" handler="trig_level_edited" swapped="no"/>
+                              </object>
                               <attributes>
-                                <attribute name="text">0</attribute>
+                                <attribute name="text">1</attribute>
+                                <attribute name="adjustment">3</attribute>
                               </attributes>
                             </child>
                           </object>
@@ -255,7 +267,7 @@
                             <child>
                               <object class="GtkCellRendererText" id="cellrenderertext1"/>
                               <attributes>
-                                <attribute name="text">1</attribute>
+                                <attribute name="text">2</attribute>
                               </attributes>
                             </child>
                           </object>
@@ -280,11 +292,13 @@
                     <property name="can_focus">False</property>
                     <property name="label_xalign">0</property>
                     <child>
-                      <object class="GtkScale" id="scale2">
+                      <object class="GtkScale" id="sample_gain_scale">
                         <property name="visible">True</property>
                         <property name="can_focus">True</property>
                         <property name="orientation">vertical</property>
-                        <property name="round_digits">1</property>
+                        <property name="inverted">True</property>
+                        <property name="round_digits">2</property>
+                        <property name="digits">2</property>
                       </object>
                     </child>
                     <child type="label">

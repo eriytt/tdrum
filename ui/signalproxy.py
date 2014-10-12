@@ -47,6 +47,7 @@ class SignalProxy(object):
         dummy_handler = getattr(self, self.dummy_callback.__name__, None)
 
         after = flags & GObject.ConnectFlags.AFTER
+
         if after:
             handler_id = gobj.connect_object_after(signal_name, dummy_handler, connect_obj)
         else:
@@ -65,6 +66,11 @@ class SignalProxy(object):
             if isinstance(widget, Gtk.MenuItem):
                 if widget.get_submenu():
                     children.append(widget.get_submenu())
+            elif isinstance(widget, Gtk.TreeView):
+                children.extend(widget.get_columns())
+            elif isinstance(widget, Gtk.TreeViewColumn):
+                children.extend(widget.get_cells())
+
             elif isinstance(widget, Gtk.Bin):
                 children.append(widget.get_child())
             elif isinstance(widget, Gtk.Container):
@@ -76,30 +82,19 @@ class SignalProxy(object):
             return children
 
 
-        connect_obj = receiver
-        if isinstance(receiver, collections.Mapping):
-            connect_obj = None
-
         def connect_recurse(widget, receiver):
             if widget in self.signal_map:
                 for conn in self.signal_map[widget]:
                     (handler, args) = self.extract_handler_and_args(receiver, conn.handler_name)
-
                 
                     widget.disconnect(conn.handler_id)
 
-                    if connect_obj is not None:
-                        if conn.after:
-                            conn.handler_id = widget.connect_object_after(
-                                conn.signal_name, handler, connect_obj, *args)
-                        else:
-                            conn.handler_id = widget.connect_object(
-                                conn.signal_name, handler, connect_obj, *args)
+                    if conn.after:
+                        conn.handler_id = widget.connect_object_after(
+                            conn.signal_name, handler, widget, *args)
                     else:
-                        if conn.after:
-                            conn.handler_id = widget.connect_after(conn.signal_name, handler, *args)
-                        else:
-                            conn.handler_id = widget.connect(conn.signal_name, handler, *args)
+                        conn.handler_id = widget.connect_object(
+                            conn.signal_name, handler, widget, *args)
 
             for c in get_widget_children(widget):
                 connect_recurse(c, receiver)
