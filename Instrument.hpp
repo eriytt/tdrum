@@ -19,7 +19,8 @@ protected:
   void addSample(const Sample *sample, unsigned char velocity);
 
 public:
-  bool loadSample(const std::string &path, unsigned char velocity);
+  const Sample *loadSample(const std::string &path, unsigned char velocity);
+  void setVelocity(const Sample *sample, unsigned char velocity);
   const Sample *getSampleForVelocity(unsigned char velocity);
   Fader *getFader() {return fader;}
   void setFader(Fader *f) {fader = f;}

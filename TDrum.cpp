@@ -66,6 +66,19 @@ void Core::addInstrument(unsigned short note, Instrument* instr)
 }
 
 
+void Core::setInstrumentNote(unsigned short note, Instrument *instr)
+{
+  auto current = std::find_if(noteToInstrument.begin(), noteToInstrument.end(),
+  			      [instr] (decltype(*noteToInstrument.end()) key_value) {
+  				return key_value.second == instr ? true : false;
+  			      });
+
+  if (current != noteToInstrument.end())
+    noteToInstrument.erase(current);
+
+  noteToInstrument[note] = instr;
+}
+
 // Jack handling methods
 
 jack_client_t *Core::registerJack()

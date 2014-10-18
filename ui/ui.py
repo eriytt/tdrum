@@ -4,7 +4,8 @@ import signalproxy
 import bus
 import instrument
 import fader
-import utils
+from utils import Utils
+import tdrum
 from gi.repository import Gtk
 
 pp = pprint.PrettyPrinter()
@@ -12,6 +13,8 @@ pp = pprint.PrettyPrinter()
 class TDrumUI(object):
     def __init__(self, gladefile):
         #gtk.gdk.threads_init()
+
+        self.core = tdrum.Core()
 
         self.gladefile = gladefile
         self.builder = Gtk.Builder()
@@ -22,7 +25,7 @@ class TDrumUI(object):
         bus.Bus.InitClass(self.builder, self.gladefile)
         instrument.Instrument.InitClass(self.builder, self.gladefile)
         fader.Fader.InitClass(self.builder, self.gladefile)
-        utils.Utils.InitClass(self.builder, self.gladefile, self.win)
+        Utils.InitClass(self.builder, self.gladefile, self.win)
         
         self.signal_proxy = signalproxy.SignalProxy(self.builder)
         self.signal_proxy.connect_signals(self.win, self)        
@@ -40,7 +43,7 @@ class TDrumUI(object):
 
     def new_instrument(self, widget):
         container = self.builder.get_object("fader_box")
-        instrument.Instrument.CreateNewInstrument(widget, container, self.signal_proxy)
+        instrument.Instrument.CreateNewInstrument(widget, container, self.signal_proxy, self.core)
         return True
 
     def nofader_popup(self, widget, event):
@@ -57,6 +60,16 @@ class TDrumUI(object):
         print "in", widget.get_name()
         return True
 
+    def connect_jack(self, checkmenuitem):
+        if checkmenuitem.get_active():
+            if not self.core.registerJack():
+                Utils.error("Failed to connect to jack", "TODO: query error reason")
+                checkmenuitem.handler_block_by_func(self.connect_jack)
+                checkmenuitem.set_active(False)
+                checkmenuitem.handler_unblock_by_func(self.connect_jack)
+        else:
+            self.core.unregisterJack()
+        return True
 
 if __name__ == "__main__":
     app = TDrumUI()

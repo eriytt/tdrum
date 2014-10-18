@@ -46,6 +46,7 @@ protected:
 public:
   Core(): jack_client(nullptr), midi_input_port(nullptr), audio_output_port(nullptr) {}
   void addInstrument(unsigned short note, Instrument* instr);
+  void setInstrumentNote(unsigned short note, Instrument *instr);
   void addFader(Fader *fader) {faders.push_back(fader);}
   jack_client_t *registerJack();
 };

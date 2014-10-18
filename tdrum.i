@@ -27,7 +27,8 @@ class Fader : public FaderSource
 class Instrument
 {
  public:
-  bool loadSample(const std::string &path, unsigned char velocity);
+  const Sample *loadSample(const std::string &path, unsigned char velocity);
+  void setVelocity(const Sample *sample, unsigned char velocity);
   void setFader(Fader *f);
 };
 
@@ -36,6 +37,7 @@ class Core
  public:
 %apply SWIGTYPE *DISOWN {Instrument* instr};
   void addInstrument(unsigned short key, Instrument* instr);
+  void setInstrumentNote(unsigned short note, Instrument *instr);
 %apply SWIGTYPE *DISOWN {Fader* fader};
   void addFader(Fader *fader);
   jack_client_t *registerJack();
