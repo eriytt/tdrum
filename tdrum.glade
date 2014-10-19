@@ -32,29 +32,31 @@
           </packing>
         </child>
         <child>
-          <object class="GtkScrollbar" id="panning_bar">
+          <object class="GtkScale" id="panning_scale">
             <property name="visible">True</property>
-            <property name="can_focus">False</property>
-            <property name="restrict_to_fill_level">False</property>
+            <property name="can_focus">True</property>
+            <property name="round_digits">1</property>
+            <property name="digits">2</property>
           </object>
           <packing>
             <property name="expand">False</property>
             <property name="fill">True</property>
-            <property name="position">2</property>
+            <property name="position">1</property>
           </packing>
         </child>
         <child>
-          <object class="GtkScrollbar" id="gain_bar">
-            <property name="height_request">200</property>
+          <object class="GtkScale" id="level_scale">
             <property name="visible">True</property>
-            <property name="can_focus">False</property>
+            <property name="can_focus">True</property>
             <property name="orientation">vertical</property>
-            <property name="show_fill_level">True</property>
+            <property name="inverted">True</property>
+            <property name="round_digits">1</property>
+            <property name="digits">2</property>
           </object>
           <packing>
             <property name="expand">True</property>
             <property name="fill">True</property>
-            <property name="position">3</property>
+            <property name="position">2</property>
           </packing>
         </child>
       </object>

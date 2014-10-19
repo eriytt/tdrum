@@ -38,7 +38,7 @@ class TDrumUI(object):
 
     def new_bus(self, widget):
         container = self.builder.get_object("fader_box")
-        bus.Bus.CreateNewBus(widget, container)
+        bus.Bus.CreateNewBus(widget, container, self.signal_proxy, self.core)
         return True
 
     def new_instrument(self, widget):

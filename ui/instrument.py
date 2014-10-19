@@ -60,10 +60,8 @@ class Instrument(object):
     def finalize(self, core):
         self.core = core
         self.core.addInstrument(self.note, self.core_instrument)
-        self.core_fader = tcore.Fader(self.name)
-        core.addFader(self.core_fader)
-        self.core_instrument.setFader(self.core_fader)
-        self.fader = fader.Fader(self.name, self.container)
+        self.fader = fader.Fader(self.name, self.container, core)
+        self.core_instrument.setFader(self.fader.get_core_fader())
         return self
 
     def is_valid(self):
