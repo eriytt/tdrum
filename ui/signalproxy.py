@@ -5,13 +5,20 @@ import collections
 import pprint
 pp = pprint.PrettyPrinter()
 
-class SignalProxy(object):
-    class SignalConnection(object):
+def connect_signals(toplevel, receiver):
+    return SignalProxy.instance.connect_signals(toplevel, receiver)
+
+class SignalProxy:
+    class SignalConnection:
         def __init__(self, signal_name, handler_name, handler_id, after):
             self.signal_name = signal_name
             self.handler_name = handler_name
             self.handler_id = handler_id
             self.after = after
+
+    @classmethod
+    def InitClass(cls, builder):
+        cls.instance = SignalProxy(builder)
 
     @staticmethod
     def extract_handler_and_args(obj_or_map, handler_name):
@@ -56,7 +63,6 @@ class SignalProxy(object):
         self.signal_map.setdefault(gobj, []).append(SignalProxy.SignalConnection(
             signal_name, handler_name, handler_id, after))
 
-    
     def connect_signals(self, toplevel, receiver):
 
         def get_widget_children(widget):
@@ -86,7 +92,7 @@ class SignalProxy(object):
             if widget in self.signal_map:
                 for conn in self.signal_map[widget]:
                     (handler, args) = self.extract_handler_and_args(receiver, conn.handler_name)
-                
+
                     widget.disconnect(conn.handler_id)
 
                     if conn.after:
