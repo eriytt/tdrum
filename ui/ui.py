@@ -7,18 +7,16 @@ import ui.bus as bus
 import ui.instrument as instrument
 import ui.fader as fader
 from ui.utils import Utils
-import tdrum
 from gi.repository import Gtk
+from ui.core import CoreInstrument, CoreFader
 
 pp = pprint.PrettyPrinter()
 
 class TDrumUI(object):
     def __init__(self, gladefile):
         #gtk.gdk.threads_init()
-        tdrum.init()
-        self.channels = []
 
-        self.core = tdrum.Core()
+        self.channels = []
 
         self.gladefile = gladefile
         self.builder = Gtk.Builder()
@@ -38,14 +36,14 @@ class TDrumUI(object):
         self.win.set_title("TDrum")
 
         container = self.builder.get_object("fader_box")
-        bus.Bus.CreateMaster(container, self.core)
+        bus.Bus.CreateMaster(container)
 
         self.win.show_all()
 
 
     def new_bus(self, widget):
         container = self.builder.get_object("fader_box")
-        b = bus.Bus.CreateNewBus(widget, container, self.core)
+        b = bus.Bus.CreateNewBus(widget, container)
         self.channels.append(b)
         return True
 

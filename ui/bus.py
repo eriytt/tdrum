@@ -2,8 +2,7 @@ from gi.repository import Gtk
 
 import ui.fader as fader
 from ui.utils import Utils
-
-import tdrum as tcore
+import ui.core as core
 
 class Bus(object):
     @classmethod
@@ -19,7 +18,7 @@ class Bus(object):
         return cls.buses
 
     @classmethod
-    def CreateMaster(cls, container, core):
+    def CreateMaster(cls, container):
         master = Bus()
         master.name = "Master"
         master.fader = fader.BusFader(master.name, container, master, core.get_master_fader())
@@ -31,8 +30,7 @@ class Bus(object):
 
 
     @classmethod
-    def CreateNewBus(cls, widget, container, core):
-        bus = Bus()
+    def CreateNewBus(cls, widget, container):
 
         name_entry = cls.builder.get_object("bus_name_entry")
         name_entry.set_text("")
@@ -48,28 +46,28 @@ class Bus(object):
                 response = err("Name is already taken by another bus")
                 continue
 
-            bus.finalize(name, container, core)
+            bus = Bus()
+            bus.finalize(name, container)
             cls.new_bus_dialog.hide()
             cls.buses[bus.name] = bus
-            core.add_bus(bus.name, bus.core_fader)
+            #core.add_bus(bus.name, bus.core_fader)
             return bus
 
         cls.new_bus_dialog.hide()
         return None
 
     @classmethod
-    def load(cls, obj, container, core):
-        bus = Bus(obj['name'], container, core)
+    def load(cls, obj, container):
+        bus = Bus(obj['name'], container)
         bus.fader.load(obj['fader'])
         return bus
 
     def __init__(self):
         self.inputs = []
 
-    def finalize(self, name, container, core):
+    def finalize(self, name, container):
         self.name = name
-        self.fader = fader.BusFader(self.name, container, self, core)
-        self.core_fader = tcore.Fader()
+        self.fader = fader.BusFader(self.name, container, self, core.CoreFader(name))
 
     def save(self):
         return  {

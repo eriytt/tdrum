@@ -65,7 +65,7 @@ pub struct SharedState {
     pub fsrc_map: HashMap<usize, Vec<FaderSourceType>>,
     buses: Vec<Fader>,
     cm: ConnectionMatrix,
-    master: FaderRef,
+    pub master: FaderRef,
 }
 
 

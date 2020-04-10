@@ -24,33 +24,14 @@ trait Source {
     fn fill(&self, iterator: &mut std::slice::IterMut<f32>);
 }
 
-struct TdrumCore {
-    core: Option<TRCore>,
-}
-
-impl TdrumCore {
-    fn take(&mut self) -> TRCore {
-        let c = std::mem::replace(&mut self.core, None);
-        c.unwrap()
-    }
-
-    fn give(&mut self, core: TRCore) {
-        std::mem::replace(&mut self.core, Some(core));
-    }
-
-}
-
-
-static mut CORE: TdrumCore = TdrumCore {
-    core: None,
-};
 
 enum SharedIdx {
     Shared1,
     Shared2
 }
 
-struct TRCore {
+#[pyclass(dict)]
+struct Core {
     instruments: Arc<HashMap<usize, Box<Instrument>>>,
     master: Fader,
     buses: Vec<Fader>,
@@ -62,42 +43,12 @@ struct TRCore {
     gen: Arc<AtomicU64>,
     shidx: SharedIdx,
     shptr: Arc<AtomicPtr<SharedState>>,
-    shared1: SharedState,
-    shared2: SharedState,
+    shared1: *mut SharedState,
+    shared2: *mut SharedState,
     jack_running: bool,
 }
 
-
-
-impl TRCore {
-    fn new() -> TRCore{
-        let state = SharedState::new();
-        let shadow = SharedState::new();
-        let mut core = TRCore {
-            instruments: Arc::new(HashMap::new()),
-            master: Fader::initu32("Master", 0),
-            buses: Vec::new(),
-            //client: None,
-            drop: None,
-            play_queue: None,
-            play_events: Vec::new(),
-            cm: Arc::new(AtomicPtr::default()),
-            gen: Arc::new(AtomicU64::new(0)),
-            shidx: SharedIdx::Shared1,
-            shptr: Arc::new(AtomicPtr::default()),
-            shared1: state,
-            shared2: shadow,
-            jack_running: false
-        };
-
-        let mref = core.fader_new("Master");
-        core.shared1.set_master(mref.clone());
-        core.shared2.set_master(mref);
-
-        core.shptr.store(&mut core.shared1, Relaxed);
-        core
-     }
-
+impl Core {
     fn register_jack(&mut self) -> Result<(), & str> {
         let (client, _status) =
             jack::Client::new("Tdrum", jack::ClientOptions::NO_START_SERVER).unwrap();
@@ -124,16 +75,20 @@ impl TRCore {
 
 
     fn get_shared_state(&mut self) -> &mut SharedState {
-        match &self.shidx {
-            Shared1 => &mut self.shared1,
-            Shared2 => &mut self.shared2
+        unsafe {
+            match &self.shidx {
+                Shared1 => &mut *self.shared1,
+                Shared2 => &mut *self.shared2
+            }
         }
     }
 
     fn get_shadow_state(&mut self) -> &mut SharedState {
-        match &self.shidx {
-            Shared1 => &mut self.shared2,
-            Shared2 => &mut self.shared1
+        unsafe {
+            match &self.shidx {
+                Shared1 => &mut *self.shared2,
+                Shared2 => &mut *self.shared1
+            }
         }
     }
 
@@ -163,7 +118,12 @@ impl TRCore {
     fn with_swap_states<F>(&mut self, f: F)
     where F: Fn(&mut SharedState) -> () {
 
-        let s1 = self.get_shadow_state();
+        let s1 =
+            if self.jack_running {
+                self.get_shadow_state()
+            } else {
+                self.get_shared_state()
+            };
         f(s1);
         self.swap_states();
 
@@ -184,16 +144,6 @@ impl TRCore {
 
     fn get_master(&self) -> Fader {
         self.master.clone()
-    }
-
-    fn instrument_new(&mut self, name: &str) -> InstrumentRef {
-        let instr = Box::new(Instrument::create(name));
-        let iptr = Box::into_raw(instr);
-        self.with_swap_states(|s| {s.instr_map.insert(iptr as usize, iptr);; ()});
-
-        InstrumentRef{
-            tcid: iptr as usize
-        }
     }
 
     fn instrument_remove(&mut self, note: u8) {
@@ -227,13 +177,67 @@ impl TRCore {
     fn set_instrument_note(&self, note: u16, instrument: &Instrument) {
     }
 
+
+}
+
+#[pymethods]
+impl Core {
+
+    #[new]
+    fn new(obj: &PyRawObject) {
+        let state = Box::new(SharedState::new());
+        let shadow = Box::new(SharedState::new());
+        let mut core = Self {
+            instruments: Arc::new(HashMap::new()),
+            master: Fader::initu32("Master", 0),
+            buses: Vec::new(),
+            //client: None,
+            drop: None,
+            play_queue: None,
+            play_events: Vec::new(),
+            cm: Arc::new(AtomicPtr::default()),
+            gen: Arc::new(AtomicU64::new(0)),
+            shidx: SharedIdx::Shared1,
+            shptr: Arc::new(AtomicPtr::default()),
+            shared1: Box::into_raw(state),
+            shared2: Box::into_raw(shadow),
+            jack_running: false
+        };
+
+        let mref = core.fader_new("Master");
+        core.get_shared_state().set_master(mref.clone());
+        core.get_shadow_state().set_master(mref);
+
+        core.shptr.store(core.shared1, Relaxed);
+
+        obj.init({
+            core
+        });
+    }
+
+    fn get_master_fader(&self) -> FaderRef {
+        let state_ptr = self.shptr.load(Relaxed);
+        let state: &SharedState =  unsafe {&*state_ptr};
+        state.master.clone()
+    }
+
     fn fader_new(&mut self, name: &str) -> FaderRef {
         let fad = Box::new(Fader::initf64(name, 1.0f64));
         let fptr = Box::into_raw(fad);
-        self.with_swap_states(|s| {s.fader_map.insert(fptr as usize, fptr);; ()});
+        self.with_swap_states(|s| {s.fader_map.insert(fptr as usize, fptr); ()});
 
         FaderRef{
             tcid: fptr as usize
+        }
+    }
+
+    fn instrument_new(&mut self, name: &str) -> InstrumentRef {
+        let instr = Box::new(Instrument::create(name));
+        let iptr = Box::into_raw(instr);
+        self.with_swap_states(|s| {s.instr_map.insert(iptr as usize, iptr);; ()});
+
+        InstrumentRef{
+            tcid: iptr as usize
         }
     }
 
@@ -257,80 +261,23 @@ impl TRCore {
         });
     }
 
+    fn fader_test_method(&mut self, fader: &FaderRef, other_fader: &FaderRef, some_int: i32) {
+        println!("Test method called with fader {}, {}, {}", fader.tcid, other_fader.tcid, some_int);
+    }
+
+    fn fader_set_gain(&mut self, fader: &FaderRef, gain: f32) {
+        let state = self.get_shared_state();
+        if let Some(mut ptr) = state.fader_map.get(&fader.tcid) {
+            let f: &Fader = unsafe{&**ptr};
+            f.set_gain(gain);
+        }
+    }
+
+
 }
-
-
-#[pyclass]
-struct Core {
-}
-
-
-#[pymethods]
-impl Core {
-
-    #[new]
-    fn new(obj: &PyRawObject) {
-        obj.init({
-            Core {}
-        });
-     }
-
-    #[allow(non_snake_case)]
-    fn registerJack(&self) -> PyResult<bool> {
-        let mut core = unsafe {CORE.take()};
-        core.register_jack();
-        unsafe {CORE.give(core)};
-        Ok(true)
-    }
-
-    fn add_instrument(&mut self, key: u8, instrument: &InstrumentRef) {
-        let mut core = unsafe {CORE.take()};
-        core.update_instrument(key, instrument);
-        unsafe {CORE.give(core)};
-    }
-
-    fn add_bus(&mut self, name: &str, fader: &mut Fader) {
-        let mut core = unsafe {CORE.take()};
-        core.update_bus(name, fader);
-        unsafe {CORE.give(core)};
-    }
-
-    fn get_master_fader(&self) -> Fader {
-        let mut core = unsafe {CORE.take()};
-        let master = core.get_master();
-        unsafe {CORE.give(core)};
-        master
-    }
-
-    fn play_instrument(&self, key: u8, level: u8) {
-    }
-
-    fn rebuild_signal_chain(&self, master: &mut Fader) {
-        let mut core = unsafe {CORE.take()};
-        core.rebuild_signal_chain(master);
-        unsafe {CORE.give(core)};
-    }
-
-    #[allow(non_snake_case)]
-    fn setInstrumentNote(&self, note: u16, instrument: &Instrument) {
-    }
-
-    #[allow(non_snake_case)]
-    fn addFader(&self, fader: &Fader) {
-    }
-}
-
 
 #[pymodule]
 fn tdrum(_py: Python, m: &PyModule) -> PyResult<()> {
-
-    #[pyfn(m, "init")]
-    fn init_py(_py: Python) -> PyResult<bool> {
-        unsafe {
-            CORE.core = Some(TRCore::new());
-        }
-        Ok(true)
-    }
     m.add_class::<Core>()?;
     m.add_class::<Instrument>()?;
     m.add_class::<Fader>()?;

@@ -35,6 +35,11 @@ impl Fader {
         }
     }
 
+    pub fn set_gain(&self, gain: f32) {
+        let ival = (std::u32::MAX as f64 * gain as f64) as u32;
+        self.gain.store(ival, Relaxed);
+    }
+
     pub fn get_gain(&self) -> f32 {
         //let ival = (std::u32::MAX as f64 * gain as f64) as u32;
         //(self.gain.load(Relaxed) as f64 / std::u32::MAX as f64) as f32
@@ -68,11 +73,6 @@ impl Fader {
     #[allow(non_snake_case)]
     fn getGain(&self) -> PyResult<f32> {
         Ok(0.0)
-    }
-
-    fn set_gain(&self, gain: f32) {
-        let ival = (std::u32::MAX as f64 * gain as f64) as u32;
-        self.gain.store(ival, Relaxed);
     }
 
     #[allow(non_snake_case)]
