@@ -5,7 +5,7 @@ use std::sync::mpsc;
 use std::collections::HashMap;
 use std::ops::Deref;
 
-use super::instrument::{Instrument, InstrumentMap};
+use super::instrument::{Instrument, InstrumentMap, InstrumentRef};
 use super::samples::{PlayingSample, LevelSample, Sample};
 use super::fader::{Fader, FaderRef};
 
@@ -84,6 +84,17 @@ impl SharedState {
 
     pub fn set_master(&mut self, fref: FaderRef) {
         self.master = fref;
+    }
+
+    pub fn find_instrument_fader_idx(&self, instrument: &InstrumentRef)
+                                 -> Option<usize> {
+        self.fsrc_map.iter().find(
+            |(k, src_vec)| src_vec.iter().any(
+                |s| match s {
+                    FaderSourceType::FaderSrc(idx) => false,
+                    FaderSourceType::InstrumentSrc(idx) => idx == &instrument.tcid
+                }
+            )).map(|(k, v)| *k)
     }
 }
 
@@ -263,24 +274,6 @@ impl jack::ProcessHandler for Processor {
             }
         }
 
-        //let master = self.get_fader_for_index(state.master.tcid, &state).unwrap();
-
-        match state.fsrc_map.get(&state.master.tcid) {
-            Some(v) => {
-                for src in v.iter() {
-                    match src {
-                        FaderSourceType::FaderSrc(fidx) => (),
-                        FaderSourceType::InstrumentSrc(iidx) => {
-                            match self.samples.get(iidx) {
-                                Some(vs) => (), // Return iterator that sums element wise over iterators on playing sample
-                                None => (),// Return silent iterator, or maybe no iterator, probably the former
-                            }
-                        }
-                    }
-                }
-            },
-            None => ()
-        }
 
         let fiter = self.get_fader_src_iter(state.master.tcid, &state);
         let out = self.audio_port.as_mut_slice(ps);
@@ -288,56 +281,6 @@ impl jack::ProcessHandler for Processor {
             *ou = v;
         }
 
-        // // let sample_rate = client.sample_rate();
-        // // let frame_t = 1.0 / sample_rate as f64;
-
-        // //let out = self.audio_port.as_mut_slice(ps);
-        // let mut cm = unsafe {&*self.cm.load(Relaxed)};
-        // for v in self.audio_port.as_mut_slice(ps).iter_mut() {
-        //     fn collect_sample(cm: &ConnectionMatrix, fader: &Fader) -> f32 {
-        //         match cm.get(&fader.name) {
-        //             None => 0.0f32,
-        //             Some(srcs) => {
-        //                 let mut val = 0.0f32;
-        //                 for faptr in srcs {
-        //                     let p = faptr.load(Relaxed);
-        //                     if p.is_null() {continue;}
-        //                     val += fader.get_gain() * collect_sample(cm, unsafe{&*p});
-        //                 }
-        //                 val
-        //             }
-        //         }
-        //     }
-        //     let val = collect_sample(&cm, &self.master);
-        //     *v = val;
-        // }
-        // //self.master.fill(&mut out.iter_mut());
-
-        // // Write output
-        // // for v in out.iter_mut() {
-        // //     let val = self.samples.iter_mut().fold(0.0f32, move | acc: f32, s: &mut PlayingSample| -> f32 {
-        // //         acc + s.take()
-        // //     });
-
-        // //      *v = val;
-        // //     // let x = 1000. * self.time * 2.0 * std::f64::consts::PI;
-        // //     // let y = x.sin();
-        // //     // self.time += frame_t;
-
-        // //     // *v = (val * 100.0) + (y * 0.01) as f32;;
-        // // }
-
-        // for i in (0..self.samples.len()).rev() {
-        //     let ps = &self.samples[i];
-        //     if ps.finished() {
-        //         let ds = self.find_drop_slot();
-        //         if ds >= 0 {
-        //             self.drop[ds as usize].store(&mut (ps.sample.clone()), Relaxed);
-        //         }
-        //         println!("Sample done");
-        //         self.samples.remove(i);
-        //     }
-        // }
         jack::Control::Continue
     }
 }

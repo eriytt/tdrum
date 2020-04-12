@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use std::ops::Deref;
 
 use pyo3::prelude::*;
+use pyo3::exceptions;
 
 mod fader;
 use fader::{Fader, FaderRef};
@@ -83,7 +84,7 @@ impl Core {
         }
     }
 
-    fn get_shadow_state(&mut self) -> &mut SharedState {
+    fn get_shadow_state(&self) -> &mut SharedState {
         unsafe {
             match &self.shidx {
                 Shared1 => &mut *self.shared2,
@@ -173,11 +174,6 @@ impl Core {
         // self.cm.store(&mut new_connection_matrix , Relaxed);
     }
 
-
-    fn set_instrument_note(&self, note: u16, instrument: &Instrument) {
-    }
-
-
 }
 
 #[pymethods]
@@ -215,6 +211,46 @@ impl Core {
         });
     }
 
+    fn instrument_new(&mut self, name: &str) -> InstrumentRef {
+        let instr = Box::new(Instrument::create(name));
+        let iptr = Box::into_raw(instr);
+        self.with_swap_states(|s| {s.instr_map.insert(iptr as usize, iptr); ()});
+
+        let instrument = InstrumentRef{
+            tcid: iptr as usize
+        };
+
+        let fader = self.fader_new(name);
+        self.fader_add_instrument_src(&fader, &instrument);
+        instrument
+    }
+
+    fn instrument_set_note(&mut self, instrument: &InstrumentRef, note: u16) {
+        self.with_swap_states(|s| {s.note_map.insert((note & 0xf) as u8, instrument.tcid); ()});
+    }
+
+    fn instrument_add_sample(&mut self, instrument: &InstrumentRef, sample: &mut SampleHandle) -> PyResult<()> {
+        let mut iptr = match self.get_shadow_state().instr_map.get(&instrument.tcid) {
+            Some(iptr) => *iptr,
+            None => return Err(PyErr::new::<exceptions::LookupError, _>("Instrument not found"))
+        };
+        self.with_swap_states(|s| {s.instr_map.remove(&instrument.tcid); ()});
+
+        let i: &mut Instrument = unsafe{&mut *iptr};
+        i.add_sample(sample);
+
+        self.with_swap_states(|s| {s.instr_map.insert(instrument.tcid, iptr); ()});
+        Ok(())
+    }
+
+    fn instrument_get_fader(&self, instrument: &InstrumentRef)  -> PyResult<(FaderRef)> {
+        let src_entry = self.get_shadow_state().find_instrument_fader_idx(instrument);
+        match src_entry {
+            Some(k) => Ok(FaderRef{tcid: k}),
+            None => Err(PyErr::new::<exceptions::LookupError, _>("Fader not found"))
+        }
+    }
+
     fn get_master_fader(&self) -> FaderRef {
         let state_ptr = self.shptr.load(Relaxed);
         let state: &SharedState =  unsafe {&*state_ptr};
@@ -228,16 +264,6 @@ impl Core {
 
         FaderRef{
             tcid: fptr as usize
-        }
-    }
-
-    fn instrument_new(&mut self, name: &str) -> InstrumentRef {
-        let instr = Box::new(Instrument::create(name));
-        let iptr = Box::into_raw(instr);
-        self.with_swap_states(|s| {s.instr_map.insert(iptr as usize, iptr);; ()});
-
-        InstrumentRef{
-            tcid: iptr as usize
         }
     }
 
@@ -278,8 +304,15 @@ impl Core {
 
 #[pymodule]
 fn tdrum(_py: Python, m: &PyModule) -> PyResult<()> {
+
+    #[pyfn(m, "load_sample")]
+    fn load_sample(_py: Python, path: String) -> PyResult<SampleHandle> {
+        match samples::load_sample(path, 1.0f32) {
+            Ok(handle) => Ok(handle),
+            Err(s) => Err(PyErr::new::<exceptions::IOError, _>(s))
+        }
+    }
+
     m.add_class::<Core>()?;
-    m.add_class::<Instrument>()?;
-    m.add_class::<Fader>()?;
     Ok(())
 }

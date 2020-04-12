@@ -50,7 +50,7 @@ class TDrumUI(object):
     def new_instrument(self, widget):
         print("New instrument")
         container = self.builder.get_object("fader_box")
-        i = instrument.Instrument.CreateNewInstrument(widget, container, self.core)
+        i = instrument.Instrument.CreateNewInstrument(widget, container)
         self.channels.append(i)
         return True
 
@@ -79,9 +79,9 @@ class TDrumUI(object):
             for c in channels:
                 #TODO: catch errors
                 if c['type'] == 'Bus':
-                    channel = bus.Bus.load(c, container, self.core)
+                    channel = bus.Bus.load(c, container)
                 elif c['type'] == 'Instrument':
-                    channel = instrument.Instrument.load(c, container, self.core)
+                    channel = instrument.Instrument.load(c, container)
                 self.channels.append(channel)
         dialog.destroy()
 

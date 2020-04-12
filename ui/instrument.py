@@ -4,7 +4,9 @@ from gi.repository import Gtk
 import ui.signalproxy as signalproxy
 import ui.fader as fader
 from ui.utils import Utils
-import tdrum as tcore
+import ui.core as core
+
+import tdrum
 
 
 class Instrument:
@@ -24,7 +26,7 @@ class Instrument:
         return cls.instruments
 
     @classmethod
-    def CreateNewInstrument(cls, widget, container, core):
+    def CreateNewInstrument(cls, widget, container):
         instr = Instrument(None, container)
         instr.setup_dialog(cls.instrument_dialog)
 
@@ -50,18 +52,17 @@ class Instrument:
 
             cls.instrument_dialog.hide()
             cls.instruments[instr.note] = instr
-            instr.finalize(core)
-            core.add_instrument(instr.note, instr.core_instrument)
+            instr.finalize()
             return instr
 
         cls.instrument_dialog.hide()
         return None
 
     @classmethod
-    def load(cls, obj, container, core):
+    def load(cls, obj, container):
         instrument = Instrument(obj['name'], container)
         #TODO: Load samples
-        instrument.finalize(core)
+        instrument.finalize()
         self.fader.load(obj['fader'])
         return instrument
 
@@ -78,12 +79,11 @@ class Instrument:
 
         self.gain = self.gain_adjustment.get_value()
 
-        self.core = None
+        self.core_instrument = core.CoreInstrument(self.name or "")
 
         self.fader = None
         self.core_fader = None
 
-        self.core_instrument = tcore.Instrument()
 
     def save(self):
         samples = []
@@ -104,14 +104,16 @@ class Instrument:
         return b
 
 
-    def finalize(self, core):
-        self.core = core
+    def finalize(self):
         for s in self.sample_store:
             sample = s[6]
-            path = s[0]
-            self.core_instrument.add_sample(path, sample)
+            #path = s[0]
+            self.core_instrument.add_sample(sample)
 
-        self.fader = fader.InstrumentFader(self.name, self.container, self, self.core_instrument.get_fader())
+        self.fader = fader.InstrumentFader(
+            self.name, self.container, self,
+            core.CoreFader(self.name, ref=self.core_instrument.get_fader())
+        )
         #self.core_instrument.setFader(self.fader.get_core_fader())
         return self
 
@@ -140,8 +142,7 @@ class Instrument:
 
     def set_note(self, adjustment):
         self.note = int(adjustment.get_value())
-        if self.core:
-            core.setInstrumentNote(self.note, self.core_instrument)
+        self.core_instrument.set_note(self.note)
 
     def name_changed(self, widget):
         self.name = widget.get_text()
@@ -167,7 +168,7 @@ class Instrument:
             filename = dialog.get_filename()
             sample_gain_adjustment = Gtk.Adjustment(1.0, 0.0, 1.0, 0.05, 0.0, 0.0)
             self.sample_gain_scale.set_adjustment(sample_gain_adjustment)
-            core_sample = self.core_instrument.loadSample(filename, 0)
+            core_sample = tdrum.load_sample(filename)
             self.sample_store.append([filename,
                                       0, # trig level
                                       os.path.basename(filename), # displayed file

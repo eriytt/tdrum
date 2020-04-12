@@ -37,6 +37,6 @@ master_fader = CoreFader("Master", _core.get_master_fader())
 
 def get_master_fader():
     return master_fader
-# f0 = CoreFader("f0")
-# f1 = CoreFader("f1")
-# f0.test_method(f1, 4711)
+
+def load_sample(path):
+    return _core.load_sample(path)
