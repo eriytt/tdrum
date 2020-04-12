@@ -119,7 +119,7 @@ class Instrument:
 
     def play(self, velocity):
         print(f"Playing note {self.note}")
-        self.core.play_instrument(self.note, velocity)
+        self.core_instrument.play(velocity)
 
     def is_valid(self):
         if not len(self.sample_store):

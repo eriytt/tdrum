@@ -78,3 +78,4 @@ class Bus(object):
 
     def set_input(self, menuitem, bus_or_instrument):
         self.inputs.append(bus_or_instrument)
+        self.fader.get_core_fader().add_fader_src(bus_or_instrument.fader.get_core_fader())

@@ -40,3 +40,6 @@ def get_master_fader():
 
 def load_sample(path):
     return _core.load_sample(path)
+
+def register_jack():
+    return _core.register_jack()

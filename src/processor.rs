@@ -266,8 +266,6 @@ impl jack::ProcessHandler for Processor {
                 ProcessorMessage::PlayInstrument{iptr, velocity} => {
                     if let Some(instr) = self.get_instrument_for_index(iptr, &state) {
                         let sample = instr.sample_for_level(velocity);
-
-                        println!("{} live samples", self.samples.len());
                         self.samples.entry(iptr).or_insert(Vec::new()).push(PlayingSample::from_sample(sample, 1.0));
                     }
                 },

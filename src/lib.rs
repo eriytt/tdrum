@@ -36,7 +36,7 @@ struct Core {
     instruments: Arc<HashMap<usize, Box<Instrument>>>,
     master: Fader,
     buses: Vec<Fader>,
-    //client: Option<jack::AsyncClient<(), Processor>>,
+    client: Option<jack::AsyncClient<(), Processor>>,
     drop: Option<Arc<[AtomicPtr<Sample>; 2]>>,
     play_queue: Option<crossbeam_channel::Sender<ProcessorMessage>>,
     play_events: Vec<(u8, u8)>,
@@ -50,30 +50,6 @@ struct Core {
 }
 
 impl Core {
-    fn register_jack(&mut self) -> Result<(), & str> {
-        let (client, _status) =
-            jack::Client::new("Tdrum", jack::ClientOptions::NO_START_SERVER).unwrap();
-
-        let midi_input_port = client
-            .register_port("in", jack::MidiIn::default())
-            .unwrap();
-
-        let mut audio_output_port = client
-            .register_port("out_l", jack::AudioOut::default())
-            .unwrap();
-
-        let (process, tx) = Processor::new(midi_input_port, audio_output_port,
-                                       self.gen.clone(), self.shptr.clone());
-        self.drop = Some(process.get_drop_list());
-        self.play_queue = Some(tx);
-
-        //let aclient = client.activate_async((), process).unwrap();
-        client.activate_async((), process).unwrap();
-        self.jack_running = true;
-        //self.client = Some(aclient);
-        Ok(())
-    }
-
 
     fn get_shared_state(&mut self) -> &mut SharedState {
         unsafe {
@@ -153,17 +129,6 @@ impl Core {
     }
 
 
-    fn instrument_play(&mut self, instr: &InstrumentRef, velocity: u8) {
-        let idx = instr.tcid;
-        println!("Playing instrument {} with velocity {}", idx, velocity);
-        if let Some(sender) = &self.play_queue {
-            sender.send(ProcessorMessage::PlayInstrument {
-                iptr: idx,
-                velocity: velocity
-            });
-        }
-    }
-
     fn rebuild_signal_chain(&self, master: &mut Fader) {
         unimplemented!();
         // let mut new_connection_matrix = ConnectionMatrix::new();
@@ -187,7 +152,7 @@ impl Core {
             instruments: Arc::new(HashMap::new()),
             master: Fader::initu32("Master", 0),
             buses: Vec::new(),
-            //client: None,
+            client: None,
             drop: None,
             play_queue: None,
             play_events: Vec::new(),
@@ -209,6 +174,29 @@ impl Core {
         obj.init({
             core
         });
+    }
+
+    fn register_jack(&mut self) -> PyResult<()> {
+        let (client, _status) =
+            jack::Client::new("Tdrum", jack::ClientOptions::NO_START_SERVER).unwrap();
+
+        let midi_input_port = client
+            .register_port("in", jack::MidiIn::default())
+            .unwrap();
+
+        let mut audio_output_port = client
+            .register_port("out_l", jack::AudioOut::default())
+            .unwrap();
+
+        let (process, tx) = Processor::new(midi_input_port, audio_output_port,
+                                       self.gen.clone(), self.shptr.clone());
+        self.drop = Some(process.get_drop_list());
+        self.play_queue = Some(tx);
+
+        let aclient = client.activate_async((), process).unwrap();
+        self.client = Some(aclient);
+        self.jack_running = true;
+        Ok(())
     }
 
     fn instrument_new(&mut self, name: &str) -> InstrumentRef {
@@ -248,6 +236,17 @@ impl Core {
         match src_entry {
             Some(k) => Ok(FaderRef{tcid: k}),
             None => Err(PyErr::new::<exceptions::LookupError, _>("Fader not found"))
+        }
+    }
+
+    fn instrument_play(&mut self, instr: &InstrumentRef, velocity: u8) {
+        let idx = instr.tcid;
+        println!("Playing instrument {} with velocity {}", idx, velocity);
+        if let Some(sender) = &self.play_queue {
+            sender.send(ProcessorMessage::PlayInstrument {
+                iptr: idx,
+                velocity: velocity
+            });
         }
     }
 

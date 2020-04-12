@@ -84,7 +84,7 @@ class BusFader(Fader):
         buses = [b for b in sorted(bus.Bus.GetBuses().values(), key = lambda v: v.name)
                  if b not in self.bus.inputs]
         instruments = [i for i in sorted(instrument.Instrument.GetInstruments().values(), key = lambda v: v.name)
-                       if i not in self.businputs]
+                       if i not in self.bus.inputs]
 
         for b in buses:
             add_to_menu(b)

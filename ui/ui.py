@@ -8,6 +8,7 @@ import ui.instrument as instrument
 import ui.fader as fader
 from ui.utils import Utils
 from gi.repository import Gtk
+import ui.core as core
 from ui.core import CoreInstrument, CoreFader
 
 pp = pprint.PrettyPrinter()
@@ -110,7 +111,9 @@ class TDrumUI(object):
 
     def connect_jack(self, checkmenuitem):
         if checkmenuitem.get_active():
-            if not self.core.registerJack():
+            try:
+                core.register_jack();
+            except:
                 Utils.error("Failed to connect to jack", "TODO: query error reason")
                 checkmenuitem.handler_block_by_func(self.connect_jack)
                 checkmenuitem.set_active(False)
