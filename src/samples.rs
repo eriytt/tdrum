@@ -88,18 +88,33 @@ impl PlayingSample {
     pub fn finished(&self) -> bool {
         self.position >= self.sample.length
     }
+
+    pub fn advance(&mut self, steps: usize) {
+        self.position += steps;
+    }
+
+    pub fn iter(&self) -> PlayingSampleIterator {
+        PlayingSampleIterator {
+            data: self.sample.data.clone(),
+            position: self.position
+        }
+    }
 }
 
+pub struct PlayingSampleIterator {
+    data: Arc<Vec<f32>>,
+    position: usize,
+}
 
-impl Iterator for PlayingSample {
+impl std::iter::Iterator for PlayingSampleIterator {
     type Item = f32;
 
     fn next(&mut self) -> Option<f32> {
-        if self.finished() {
-            return Some(0.0f32);
+        if self.position >= self.data.len() {
+            return None
         }
 
-        let v = self.sample.data[self.position];
+        let v = self.data[self.position];
         self.position += 1;
 
         Some(v)

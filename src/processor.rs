@@ -24,12 +24,6 @@ pub enum FaderSourceType {
 struct VecZip {
     vec: Vec<Box<Iterator<Item = f32>>>
 }
-use std::iter::FromIterator;
-
-fn ps_2_boxediter(ps: &PlayingSample) -> Box<Iterator<Item = f32>>
-{
-    Box::new(ps.clone().into_iter())
-}
 
 impl VecZip {
     fn from_vec(ivec: Vec<Box<Iterator<Item = f32>>>) -> Self{
@@ -39,6 +33,7 @@ impl VecZip {
     }
 
     fn from_iter(iter: impl Iterator<Item = Box<Iterator<Item = f32> > >) -> Self {
+        use std::iter::FromIterator;
         Self::from_vec(Vec::from_iter(iter))
     }
 
@@ -196,6 +191,11 @@ impl Processor {
     }
 
     fn get_fader_src_iter(&self, fidx: usize, state: &SharedState) -> Box<Iterator<Item = f32>> {
+        let gain = match state.fader_map.get(&fidx) {
+            None => 0.0f32,
+            Some(f) => unsafe{&**f}.get_gain()
+        };
+
         match state.fsrc_map.get(&fidx) {
             None => Box::new(std::iter::repeat(0.0f32)),
             Some(v) => {
@@ -205,7 +205,7 @@ impl Processor {
                         FaderSourceType::InstrumentSrc(iidx) => self.get_instr_src_iter(*iidx)
                     }
                 });
-                Box::new(VecZip::from_iter(iters))
+                Box::new(VecZip::from_iter(iters).map(move |amplitude| amplitude * gain))
             }
         }
     }
@@ -215,7 +215,10 @@ impl Processor {
         match self.samples.get(&iidx) {
             None => Box::new(std::iter::repeat(0.0f32)),
             Some(v) => {
-                let iters = v.iter().map(|ps| ps_2_boxediter(ps));
+                let iters = v.iter().map(
+                    |ps: &PlayingSample| Box::new(ps.iter().chain(std::iter::repeat(0.0f32)))
+                        as Box<dyn Iterator<Item = f32>>
+                );
                 Box::new(VecZip::from_iter(iters))
             }
         }
@@ -234,50 +237,55 @@ impl Processor {
     pub fn get_drop_list(&self) -> Arc<[AtomicPtr<Sample>; 2]> {
         self.drop.clone()
     }
-
-    // fn get_master(&self) -> Fader {
-    //     self.master.clone()
-    // }
 }
 
 impl jack::ProcessHandler for Processor {
-    fn process(&mut self, _client: &jack::Client, ps: &jack::ProcessScope) -> jack::Control {
-        let state = StateGuard::new(&self.generation, &self.shared);
-        let midi_events = self.midi_port.iter(ps).collect::<std::vec::Vec<jack::RawMidi>>();
+    fn process(&mut self, _client: &jack::Client, process_scope: &jack::ProcessScope) -> jack::Control {
+        {
+            let state = StateGuard::new(&self.generation, &self.shared);
+            let midi_events = self.midi_port.iter(process_scope).collect::<std::vec::Vec<jack::RawMidi>>();
 
-        for e in midi_events {
-            if (e.bytes[0] & 0xf0) == 0x90 && e.bytes[1] > 0 {
-                let note = e.bytes[1];
-                let velocity = e.bytes[2];
+            for e in midi_events {
+                if (e.bytes[0] & 0xf0) == 0x90 && e.bytes[1] > 0 {
+                    let note = e.bytes[1];
+                    let velocity = e.bytes[2];
 
-                let (instr, idx) = match self.get_instrument_for_note(note, &state) {
-                    Some((instr, idx)) => (instr, idx),
-                    None => continue
-                };
+                    let (instr, idx) = match self.get_instrument_for_note(note, &state) {
+                        Some((instr, idx)) => (instr, idx),
+                        None => continue
+                    };
 
-                let sample = instr.sample_for_level(velocity);
+                    let sample = instr.sample_for_level(velocity);
 
-                self.samples.entry(idx).or_insert(Vec::new()).push(PlayingSample::from_sample(sample, 1.0))
+                    self.samples.entry(idx).or_insert(Vec::new()).push(PlayingSample::from_sample(sample, 1.0))
+                }
+            }
+
+            for m in self.messages.try_iter() {
+                match m {
+                    ProcessorMessage::PlayInstrument{iptr, velocity} => {
+                        if let Some(instr) = self.get_instrument_for_index(iptr, &state) {
+                            let sample = instr.sample_for_level(velocity);
+                            self.samples.entry(iptr).or_insert(Vec::new()).push(PlayingSample::from_sample(sample, 1.0));
+                        }
+                    },
+                }
+            }
+
+
+            let fiter = self.get_fader_src_iter(state.master.tcid, &state);
+            let out = self.audio_port.as_mut_slice(process_scope);
+            for (ou, v) in out.iter_mut().zip(fiter) {
+                *ou = v;
             }
         }
 
-        for m in self.messages.try_iter() {
-            match m {
-                ProcessorMessage::PlayInstrument{iptr, velocity} => {
-                    if let Some(instr) = self.get_instrument_for_index(iptr, &state) {
-                        let sample = instr.sample_for_level(velocity);
-                        self.samples.entry(iptr).or_insert(Vec::new()).push(PlayingSample::from_sample(sample, 1.0));
-                    }
-                },
+        self.samples.values_mut().for_each(
+            |psv| {
+                psv.iter_mut().for_each(|ps| ps.advance(process_scope.n_frames() as usize));
+                psv.retain(|ps| !ps.finished());
             }
-        }
-
-
-        let fiter = self.get_fader_src_iter(state.master.tcid, &state);
-        let out = self.audio_port.as_mut_slice(ps);
-        for (ou, v) in out.iter_mut().zip(fiter) {
-            *ou = v;
-        }
+        );
 
         jack::Control::Continue
     }
