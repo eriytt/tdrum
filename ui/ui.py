@@ -72,8 +72,8 @@ class TDrumUI(object):
         response = dialog.run()
         if response == Gtk.ResponseType.OK:
             filename = dialog.get_filename()
+            dialog.hide()
             with open(filename) as fd:
-                # TODO: catch errors
                 try:
                     channels = json.load(fd)
                 except json.decoder.JSONDecodeError as e:
@@ -82,14 +82,30 @@ class TDrumUI(object):
                     return
 
             self.channels = []
+            inputs = []
             container = self.builder.get_object("fader_box")
             for c in channels:
                 #TODO: catch errors
                 if c['type'] == 'Bus':
-                    channel = bus.Bus.load(c, container)
+                    if c['name'] != "Master":
+                        channel = bus.Bus.load(c, container)
+                    else:
+                        channel = bus.Bus.master
+                    inputs.append((channel, c['inputs']))
                 elif c['type'] == 'Instrument':
                     channel = instrument.Instrument.load(c, container)
                 self.channels.append(channel)
+
+
+            busses_and_instruments = {
+                **bus.Bus.GetBuses(),
+                **instrument.Instrument.GetInstruments()
+            }
+
+            for (b, inputs) in inputs:
+                for i in inputs:
+                    b.set_input(None, busses_and_instruments[i])
+
         dialog.destroy()
 
     def save_as(self, widget):

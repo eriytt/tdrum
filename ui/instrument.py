@@ -20,6 +20,7 @@ class Instrument:
         cls.sample_gain_scale = builder.get_object("sample_gain_scale")
         cls.midi_note_spinbutton = builder.get_object("midi_note_spinbutton")
         cls.instruments = {}
+        cls.note_map = {}
 
     @classmethod
     def GetInstruments(cls):
@@ -37,11 +38,11 @@ class Instrument:
                 Utils.error("Cannot add instrument", reason)
                 return cls.instrument_dialog.run()
 
-            if instr.note in cls.instruments:
+            if instr.note in cls.note_map:
                 response = err("Note is already taken by another instrument")
                 continue
 
-            if instr.name in [i.name for i in cls.instruments.values()]:
+            if instr.name in cls.instruments:
                 response = err("Name is already taken by another instrument")
                 continue
 
@@ -51,7 +52,8 @@ class Instrument:
                 continue
 
             cls.instrument_dialog.hide()
-            cls.instruments[instr.note] = instr
+            cls.note_map[instr.note] = instr
+            cls.instruments[instr.name] = instr
             instr.finalize()
             return instr
 
@@ -82,7 +84,8 @@ class Instrument:
                                             core_sample,
             ])
 
-        cls.instruments[instrument.note] = instrument
+        cls.note_map[instrument.note] = instrument
+        cls.instruments[instrument.name] = instrument
         instrument.finalize().fader.load(obj['fader'])
         return instrument
 
@@ -109,19 +112,17 @@ class Instrument:
         samples = []
         for s in self.sample_store:
             samples.append({
-                'filename': s,
-                'trig_level': self.sample_store[s][1] 
+                'filename': s[0],
+                'trig_level': s[1] 
             })
 
-        i = {
+        return {
             'type': 'Instrument',
             'name': self.fader.get_name(),
             'note': self.note,
-            'samples': samples
+            'samples': samples,
+            'fader': self.fader.save()
         }
-
-        i.update(self.fader.save())
-        return b
 
 
     def finalize(self):

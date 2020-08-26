@@ -59,6 +59,7 @@ class Bus(object):
     def load(cls, obj, container):
         bus = Bus().finalize(obj['name'], container)
         bus.fader.load(obj['fader'])
+        cls.buses[bus.name] = bus
         return bus
 
     def __init__(self):
@@ -73,7 +74,8 @@ class Bus(object):
         return  {
             'type': 'Bus',
             'name': self.fader.get_name(),
-            'fader': self.fader.save()
+            'fader': self.fader.save(),
+            'inputs': [i.name for i in self.inputs]
         }
 
     def set_input(self, menuitem, bus_or_instrument):

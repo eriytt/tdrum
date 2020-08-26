@@ -298,6 +298,16 @@ impl Core {
         }
     }
 
+    fn fader_get_gain(&mut self, fader: &FaderRef) -> PyResult<f32> {
+        let state = self.get_shared_state();
+        match state.fader_map.get(&fader.tcid) {
+            Some(mut ptr) => {
+                let f: &Fader = unsafe{&**ptr};
+                Ok(f.get_gain())
+            }
+            None => Err(PyErr::new::<exceptions::IndexError, _>(format!("No fader '{}'", fader.tcid)))
+        }
+    }
 
 }
 
