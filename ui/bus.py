@@ -46,8 +46,7 @@ class Bus(object):
                 response = err("Name is already taken by another bus")
                 continue
 
-            bus = Bus()
-            bus.finalize(name, container)
+            bus = Bus().finalize(name, container)
             cls.new_bus_dialog.hide()
             cls.buses[bus.name] = bus
             #core.add_bus(bus.name, bus.core_fader)
@@ -58,7 +57,7 @@ class Bus(object):
 
     @classmethod
     def load(cls, obj, container):
-        bus = Bus(obj['name'], container)
+        bus = Bus().finalize(obj['name'], container)
         bus.fader.load(obj['fader'])
         return bus
 
@@ -68,6 +67,7 @@ class Bus(object):
     def finalize(self, name, container):
         self.name = name
         self.fader = fader.BusFader(self.name, container, self, core.CoreFader(name))
+        return self
 
     def save(self):
         return  {

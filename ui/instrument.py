@@ -61,9 +61,29 @@ class Instrument:
     @classmethod
     def load(cls, obj, container):
         instrument = Instrument(obj['name'], container)
-        #TODO: Load samples
-        instrument.finalize()
-        self.fader.load(obj['fader'])
+        instrument.note = obj['note']
+        for samples in obj['samples']:
+            filename = samples['filename']
+            sample_gain_adjustment = Gtk.Adjustment(1.0, 0.0, 1.0, 0.05, 0.0, 0.0)
+            instrument.sample_gain_scale.set_adjustment(sample_gain_adjustment)
+
+            try:
+                core_sample = tdrum.load_sample(filename)
+            except OSError as e:
+                Utils.error(f"Could not load sample '{filename}'", str(e))
+                continue
+
+            instrument.sample_store.append([filename,
+                                            int(samples['trig_level']),
+                                            os.path.basename(filename), # displayed file
+                                            Gtk.Adjustment(0, 0, 127, 1, 10, 0), # trig level adjustment
+                                            sample_gain_adjustment,
+                                            1.0,
+                                            core_sample,
+            ])
+
+        cls.instruments[instrument.note] = instrument
+        instrument.finalize().fader.load(obj['fader'])
         return instrument
 
     def __init__(self, instrument_name, container):

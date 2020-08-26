@@ -128,6 +128,10 @@ pub fn load_sample(path: String, gain: f32) -> Result<SampleHandle, String> {
     let mut info = MaybeUninit::<sndfile_sys::SF_INFO>::uninit();
 
     let fh = unsafe {sndfile_sys::sf_open(c_path.as_ptr(), sndfile_sys::SFM_READ, info.as_mut_ptr())};
+    if fh == std::ptr::null_mut() {
+        return Err(format!("sf_open({},...) failed", path))
+    }
+
     let info = unsafe { info.assume_init() };
 
     let items = info.frames * info.channels as i64;

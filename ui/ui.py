@@ -74,7 +74,13 @@ class TDrumUI(object):
             filename = dialog.get_filename()
             with open(filename) as fd:
                 # TODO: catch errors
-                channels = json.load(fd)
+                try:
+                    channels = json.load(fd)
+                except json.decoder.JSONDecodeError as e:
+                    dialog.destroy()
+                    Utils.error("Cannot load file", str(e))
+                    return
+
             self.channels = []
             container = self.builder.get_object("fader_box")
             for c in channels:
