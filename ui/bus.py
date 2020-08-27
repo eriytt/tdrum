@@ -70,6 +70,9 @@ class Bus(object):
         self.fader = fader.BusFader(self.name, container, self, core.CoreFader(name))
         return self
 
+    def destroy(self):
+        self.fader.destroy()
+
     def save(self):
         return  {
             'type': 'Bus',
@@ -81,3 +84,10 @@ class Bus(object):
     def set_input(self, menuitem, bus_or_instrument):
         self.inputs.append(bus_or_instrument)
         self.fader.get_core_fader().add_fader_src(bus_or_instrument.fader.get_core_fader())
+
+    def get_inputs(self):
+        return self.inputs
+
+    def del_input(self, bus_or_instrument):
+        self.inputs.remove(bus_or_instrument)
+        self.fader.get_core_fader().del_fader_src(bus_or_instrument.fader.get_core_fader())

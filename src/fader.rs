@@ -13,7 +13,7 @@ fn unit_float_to_int(float: f64) -> u32 {
 }
 
 #[pyclass]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Fader {
     pub name: String,
     gain: Arc<AtomicU32>,
@@ -81,6 +81,7 @@ impl Fader {
 }
 
 #[pyclass]
+#[derive(Debug)]
 pub struct FaderRef {
     pub tcid: usize
 }

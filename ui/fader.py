@@ -11,6 +11,7 @@ class Fader:
         cls.gladefile = gladefile
 
     def __init__(self, fader_name, container, core_fader, widget_prefix):
+        self.container = container
         builder = Gtk.Builder()
         builder.add_objects_from_file(self.gladefile, [widget_prefix + "fader_frame"])
         builder.connect_signals(self)
@@ -20,7 +21,7 @@ class Fader:
 
         self.label = get_object("fader_label")
         self.label.set_text(fader_name)
-        fader = get_object("fader_frame")
+        self.fader_frame = get_object("fader_frame")
 
         level_adjustment = Gtk.Adjustment(1.0, 0.0, 1.0, 0.005, 0.0, 0.0)
         level_adjustment.connect("value-changed", self.set_level)
@@ -31,9 +32,14 @@ class Fader:
 
         self.menu = get_object("input_menu")
 
-        container.pack_start(fader, False, False, 0)
-        fader.reparent(container)
-        fader.show()
+        container.pack_start(self.fader_frame, False, False, 0)
+        self.fader_frame.reparent(container)
+        self.fader_frame.show()
+
+    def destroy(self):
+        self.core_fader.delete()
+        self.container.remove(self.fader_frame)
+        self.fader_frame.destroy()
 
     def save(self):
         return {

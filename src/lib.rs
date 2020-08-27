@@ -213,6 +213,27 @@ impl Core {
         instrument
     }
 
+    fn instrument_delete(&mut self, instrument: &InstrumentRef) {
+        if let Some(fader_id) = self.get_shadow_state().find_instrument_fader_idx(instrument) {
+            // The instrument fader might have been removed, but its source records might not
+            let fader_exists = self.get_shadow_state().fader_map.contains_key(&fader_id);
+            self.with_swap_states(|s| {
+                s.fsrc_map.remove(&fader_id);
+                s.fader_map.remove(&fader_id);
+            });
+            if fader_exists {
+                drop(unsafe {Box::from_raw(fader_id as *mut Fader)});
+            }
+        }
+
+        self.with_swap_states(|s| {
+            s.note_map.retain(|note, id| id != &instrument.tcid);
+            s.instr_map.remove(&instrument.tcid);
+        });
+
+        let i = unsafe {Box::from_raw(instrument.tcid as *mut Instrument)}; // drop the instrument
+    }
+
     fn instrument_set_note(&mut self, instrument: &InstrumentRef, note: u16) {
         self.with_swap_states(|s| {s.note_map.insert((note & 0xf) as u8, instrument.tcid); ()});
     }
@@ -266,6 +287,15 @@ impl Core {
         }
     }
 
+    fn fader_delete(&mut self, fader_ref: &FaderRef) {
+        self.with_swap_states(|s| {
+            s.delete_fader_source(&fader_ref);
+            s.fader_map.remove(&fader_ref.tcid);
+        });
+
+        let i = unsafe {Box::from_raw(fader_ref.tcid as *mut Fader)}; // drop the instrument
+    }
+
     fn fader_add_fader_src(&mut self, dst: &FaderRef, src: &FaderRef) {
         self.with_swap_states(|s| {
             let mut srcs = s.fsrc_map.entry(dst.tcid).or_default();
@@ -273,6 +303,13 @@ impl Core {
             if !srcs.iter().any(|s| s == &FaderSourceType::FaderSrc(src.tcid)) {
                 srcs.push(FaderSourceType::FaderSrc(src.tcid));
             }
+        });
+    }
+
+    fn fader_del_fader_src(&mut self, dst: &FaderRef, src: &FaderRef) {
+        self.with_swap_states(|s| {
+            let mut srcs = s.fsrc_map.entry(dst.tcid).or_default();
+            srcs.retain(|fs| fs != &FaderSourceType::FaderSrc(src.tcid))
         });
     }
 

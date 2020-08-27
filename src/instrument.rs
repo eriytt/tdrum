@@ -16,7 +16,6 @@ pub struct InstrumentRef {
 
 #[derive(Clone)]
 pub struct Instrument {
-    fader: Fader,
     sample_store: HashMap<String, Sample>,
     sample_levels: Vec<LevelSample>
 }
@@ -38,7 +37,6 @@ impl Instrument {
 impl Instrument {
     pub fn create(name: &str) -> Instrument {
         Instrument {
-            fader: Fader::initu32(name, 0),
             sample_store: HashMap::new(),
             sample_levels: Vec::new()
         }
@@ -55,9 +53,4 @@ impl Instrument{
 
     fn set_velocity(&self, sample: i64, velocity: u8) {
     }
-
-    fn get_fader(&self, py: Python) -> PyResult<Fader> {
-        Ok(self.fader.clone())
-    }
-
 }

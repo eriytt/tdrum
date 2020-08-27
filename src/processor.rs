@@ -15,7 +15,7 @@ pub type ConnectionMatrix = HashMap<String, [AtomicPtr<Fader>; MAX_INPUTS]>;
 
 type PlayQueue = Arc<[AtomicPtr<(u8, u8)>; 2]>;
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Debug)]
 pub enum FaderSourceType {
     FaderSrc(usize),
     InstrumentSrc(usize),
@@ -53,6 +53,7 @@ impl Iterator for VecZip {
     }
 }
 
+#[derive(Debug)]
 pub struct SharedState {
     pub instr_map: HashMap<usize, *mut Instrument>,
     pub fader_map: HashMap<usize, *mut Fader>,
@@ -90,6 +91,12 @@ impl SharedState {
                     FaderSourceType::InstrumentSrc(idx) => idx == &instrument.tcid
                 }
             )).map(|(k, v)| *k)
+    }
+
+    pub fn delete_fader_source(&mut self, fader: &FaderRef) {
+        for (_, sources) in self.fsrc_map.iter_mut() {
+            sources.retain(|fs| fs != &FaderSourceType::FaderSrc(fader.tcid))
+        }
     }
 }
 

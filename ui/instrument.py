@@ -124,6 +124,9 @@ class Instrument:
             'fader': self.fader.save()
         }
 
+    def destroy(self):
+        self.fader.destroy()
+        self.core_instrument.delete()
 
     def finalize(self):
         for s in self.sample_store:

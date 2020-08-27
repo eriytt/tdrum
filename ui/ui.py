@@ -69,10 +69,12 @@ class TDrumUI(object):
                                        buttons=(Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL,
                                                 Gtk.STOCK_OPEN, Gtk.ResponseType.OK))
 
+
         response = dialog.run()
         if response == Gtk.ResponseType.OK:
             filename = dialog.get_filename()
             dialog.hide()
+
             with open(filename) as fd:
                 try:
                     channels = json.load(fd)
@@ -80,6 +82,19 @@ class TDrumUI(object):
                     dialog.destroy()
                     Utils.error("Cannot load file", str(e))
                     return
+
+            for b in [bus.Bus.master] + list(bus.Bus.buses.values()):
+                for i in b.get_inputs():
+                    b.del_input(i)
+
+            for b in list(bus.Bus.buses.values()):
+                b.destroy()
+            bus.Bus.buses.clear()
+
+            for i in list(instrument.Instrument.instruments.values()):
+                i.destroy()
+            instrument.Instrument.instruments.clear()
+
 
             self.channels = []
             inputs = []
