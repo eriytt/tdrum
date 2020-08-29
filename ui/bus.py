@@ -57,6 +57,7 @@ class Bus(object):
 
     @classmethod
     def load(cls, obj, container):
+        print(f'Loading bus {obj["name"]}')
         bus = Bus().finalize(obj['name'], container)
         bus.fader.load(obj['fader'])
         cls.buses[bus.name] = bus

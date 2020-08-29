@@ -63,6 +63,7 @@ class Instrument:
     @classmethod
     def load(cls, obj, container):
         instrument = Instrument(obj['name'], container)
+        print(f'Loading instrument {instrument.name}')
         instrument.note = obj['note']
         for samples in obj['samples']:
             filename = samples['filename']

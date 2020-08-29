@@ -21,6 +21,12 @@ pub enum FaderSourceType {
     InstrumentSrc(usize),
 }
 
+#[derive(PartialEq)]
+pub enum Channel {
+    Left,
+    Right
+}
+
 struct VecZip {
     vec: Vec<Box<Iterator<Item = f32>>>
 }
@@ -136,36 +142,31 @@ pub enum ProcessorMessage {
 
 pub struct Processor {
     midi_port: jack::Port<jack::MidiIn>,
-    audio_port: jack::Port<jack::AudioOut>,
-    // instrument_map: InstrumentMap,
-    // faders: Vec<Fader>,
-    // master: Fader,
+    audio_port_left:  jack::Port<jack::AudioOut>,
+    audio_port_right: jack::Port<jack::AudioOut>,
     samples: HashMap<usize, Vec<PlayingSample>>,
     drop: Arc<[AtomicPtr<Sample>; 2]>,
     time: f64,
     generation: Arc<AtomicU64>,
     shared: Arc<AtomicPtr<SharedState>>,
     messages: crossbeam_channel::Receiver<ProcessorMessage>,
-    // cm: Arc<AtomicPtr<ConnectionMatrix>>,
 }
 
 impl Processor {
     pub fn new(midi_port: jack::Port<jack::MidiIn>,
-               audio_port: jack::Port<jack::AudioOut>,
+               audio_port_left: jack::Port<jack::AudioOut>,
+               audio_port_right: jack::Port<jack::AudioOut>,
                generation: Arc<AtomicU64>,
                shared: Arc<AtomicPtr<SharedState>>,
     ) -> (Processor, crossbeam_channel::Sender<ProcessorMessage>) {
         let (tx, rx) = crossbeam_channel::unbounded();
         (Processor {
             midi_port: midi_port,
-            audio_port: audio_port,
-            // instrument_map: instr_map,
-            // faders: faders,
-            // master: master,
+            audio_port_left: audio_port_left,
+            audio_port_right: audio_port_right,
             samples: HashMap::new(),
             drop: Arc::new([AtomicPtr::default(), AtomicPtr::default()]),
             time: 0.0,
-            // cm: cm,
             generation: generation,
             shared: shared,
             messages: rx,
@@ -197,10 +198,19 @@ impl Processor {
         }
     }
 
-    fn get_fader_src_iter(&self, fidx: usize, state: &SharedState) -> Box<Iterator<Item = f32>> {
-        let gain = match state.fader_map.get(&fidx) {
-            None => 0.0f32,
-            Some(f) => unsafe{&**f}.get_gain()
+    fn get_fader_src_iter(&self, fidx: usize, channel: &Channel, state: &SharedState)
+                          -> Box<Iterator<Item = f32>> {
+        let (gain, pan) = match state.fader_map.get(&fidx) {
+            None => (0.0f32, 0.5),
+            Some(f) => {
+                let fader = unsafe{&**f};
+                (fader.get_gain(), fader.get_panning())
+            }
+        };
+
+        let pan_gain = match channel {
+            Channel::Left  => pan,
+            Channel::Right => 1.0 - pan,
         };
 
         match state.fsrc_map.get(&fidx) {
@@ -208,11 +218,11 @@ impl Processor {
             Some(v) => {
                 let iters = v.iter().map(|i| {
                     match i {
-                        FaderSourceType::FaderSrc(fidx) => self.get_fader_src_iter(*fidx, state),
+                        FaderSourceType::FaderSrc(fidx) => self.get_fader_src_iter(*fidx, &channel, state),
                         FaderSourceType::InstrumentSrc(iidx) => self.get_instr_src_iter(*iidx)
                     }
                 });
-                Box::new(VecZip::from_iter(iters).map(move |amplitude| amplitude * gain))
+                Box::new(VecZip::from_iter(iters).map(move |amplitude| amplitude * gain * pan_gain))
             }
         }
     }
@@ -230,16 +240,6 @@ impl Processor {
             }
         }
     }
-
-    // fn find_drop_slot(&self) -> i8 {
-    //     for (i, dptr) in self.drop.iter().enumerate() {
-    //         match unsafe {dptr.load(Relaxed).as_ref()} {
-    //             None => return i as i8,
-    //             Some(x) => continue
-    //         }
-    //     }
-    //     -1
-    // }
 
     pub fn get_drop_list(&self) -> Arc<[AtomicPtr<Sample>; 2]> {
         self.drop.clone()
@@ -279,11 +279,16 @@ impl jack::ProcessHandler for Processor {
                 }
             }
 
-
-            let fiter = self.get_fader_src_iter(state.master.tcid, &state);
-            let out = self.audio_port.as_mut_slice(process_scope);
-            for (ou, v) in out.iter_mut().zip(fiter) {
-                *ou = v;
+            for channel in vec![Channel::Left,  Channel::Right] {
+                let fiter = self.get_fader_src_iter(state.master.tcid, &channel, &state);
+                let audio_port = match channel {
+                    Channel::Left  => &mut self.audio_port_left,
+                    Channel::Right => &mut self.audio_port_right,
+                };
+                let out = audio_port.as_mut_slice(process_scope);
+                for (ou, v) in out.iter_mut().zip(fiter) {
+                    *ou = v;
+                }
             }
         }
 

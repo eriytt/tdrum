@@ -17,6 +17,7 @@ fn unit_float_to_int(float: f64) -> u32 {
 pub struct Fader {
     pub name: String,
     gain: Arc<AtomicU32>,
+    panning: Arc<AtomicU32>,
 }
 
 impl Fader {
@@ -25,13 +26,15 @@ impl Fader {
         Fader {
             name: name.to_string(),
             gain: Arc::new(AtomicU32::new(ival)),
+            panning: Arc::new(AtomicU32::new(unit_float_to_int(0.5))),
         }
     }
 
     pub fn initu32(name: &str, v: u32) -> Fader {
         Fader {
             name: name.to_string(),
-            gain: Arc::new(AtomicU32::new(v))
+            gain: Arc::new(AtomicU32::new(v)),
+            panning: Arc::new(AtomicU32::new(unit_float_to_int(0.5))),
         }
     }
 
@@ -44,6 +47,15 @@ impl Fader {
         //let ival = (std::u32::MAX as f64 * gain as f64) as u32;
         //(self.gain.load(Relaxed) as f64 / std::u32::MAX as f64) as f32
         unit_int_to_float(self.gain.load(Relaxed))
+    }
+
+    pub fn set_panning(&self, pan: f32) {
+        let ival = (std::u32::MAX as f64 * pan as f64) as u32;
+        self.panning.store(ival, Relaxed);
+    }
+
+    pub fn get_panning(&self) -> f32 {
+        unit_int_to_float(self.panning.load(Relaxed))
     }
 
 }

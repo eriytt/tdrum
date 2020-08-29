@@ -28,6 +28,10 @@ class Fader:
         level_scale = get_object("level_scale")
         level_scale.set_adjustment(level_adjustment)
 
+        pan_adjustment = Gtk.Adjustment(0.5, 0.0, 1.0, 0.005, 0.0, 0.0)
+        pan_adjustment.connect("value-changed", self.set_pan)
+        get_object("panning_scale").set_adjustment(pan_adjustment)
+
         self.core_fader = core_fader #tcore.Fader(fader_name)
 
         self.menu = get_object("input_menu")
@@ -43,11 +47,13 @@ class Fader:
 
     def save(self):
         return {
-            'level': self.core_fader.get_gain()
+            'level': self.core_fader.get_gain(),
+            'panning': self.core_fader.get_panning()
         }
 
     def load(self, obj):
         self.core_fader.set_gain(obj['level'])
+        self.core_fader.set_panning(obj['panning'])
 
     def get_name(self):
         return self.label.get_text()
@@ -57,6 +63,9 @@ class Fader:
 
     def set_level(self, adjustment):
         self.core_fader.set_gain(adjustment.get_value())
+
+    def set_pan(self, adjustment):
+        self.core_fader.set_panning(adjustment.get_value())
 
     def fader_popup(self, *args, **kwargs):pass
     #    print(f"Popup {args} {kwargs}")

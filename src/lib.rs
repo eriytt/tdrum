@@ -25,7 +25,7 @@ trait Source {
     fn fill(&self, iterator: &mut std::slice::IterMut<f32>);
 }
 
-
+#[derive(Debug)]
 enum SharedIdx {
     Shared1,
     Shared2
@@ -54,8 +54,8 @@ impl Core {
     fn get_shared_state(&mut self) -> &mut SharedState {
         unsafe {
             match &self.shidx {
-                Shared1 => &mut *self.shared1,
-                Shared2 => &mut *self.shared2
+                SharedIdx::Shared1 => &mut *self.shared1,
+                SharedIdx::Shared2 => &mut *self.shared2
             }
         }
     }
@@ -63,8 +63,8 @@ impl Core {
     fn get_shadow_state(&self) -> &mut SharedState {
         unsafe {
             match &self.shidx {
-                Shared1 => &mut *self.shared2,
-                Shared2 => &mut *self.shared1
+                SharedIdx::Shared1 => &mut *self.shared2,
+                SharedIdx::Shared2 => &mut *self.shared1,
             }
         }
     }
@@ -76,8 +76,8 @@ impl Core {
         self.shptr.store(s, Relaxed);
 
         self.shidx = match &self.shidx {
-            Shared1 => SharedIdx::Shared2,
-            Shared2 => SharedIdx::Shared1
+            SharedIdx::Shared1 => SharedIdx::Shared2,
+            SharedIdx::Shared2 => SharedIdx::Shared1
         };
 
         let mut generation = self.gen.load(Relaxed);
@@ -184,12 +184,18 @@ impl Core {
             .register_port("in", jack::MidiIn::default())
             .unwrap();
 
-        let mut audio_output_port = client
+        let mut audio_output_port_left = client
             .register_port("out_l", jack::AudioOut::default())
             .unwrap();
 
-        let (process, tx) = Processor::new(midi_input_port, audio_output_port,
-                                       self.gen.clone(), self.shptr.clone());
+        let mut audio_output_port_right = client
+            .register_port("out_r", jack::AudioOut::default())
+            .unwrap();
+
+
+        let (process, tx) = Processor::new(midi_input_port,
+                                           audio_output_port_left, audio_output_port_right,
+                                           self.gen.clone(), self.shptr.clone());
         self.drop = Some(process.get_drop_list());
         self.play_queue = Some(tx);
 
@@ -296,6 +302,10 @@ impl Core {
         let i = unsafe {Box::from_raw(fader_ref.tcid as *mut Fader)}; // drop the instrument
     }
 
+    fn fader_get_internal_id(&mut self, fader_ref: &FaderRef) -> PyResult<usize> {
+        Ok(fader_ref.tcid)
+    }
+
     fn fader_add_fader_src(&mut self, dst: &FaderRef, src: &FaderRef) {
         self.with_swap_states(|s| {
             let mut srcs = s.fsrc_map.entry(dst.tcid).or_default();
@@ -343,6 +353,14 @@ impl Core {
                 Ok(f.get_gain())
             }
             None => Err(PyErr::new::<exceptions::IndexError, _>(format!("No fader '{}'", fader.tcid)))
+        }
+    }
+
+    fn fader_set_panning(&mut self, fader: &FaderRef, panning: f32) {
+        let state = self.get_shared_state();
+        if let Some(mut ptr) = state.fader_map.get(&fader.tcid) {
+            let f: &Fader = unsafe{&**ptr};
+            f.set_panning(panning);
         }
     }
 
