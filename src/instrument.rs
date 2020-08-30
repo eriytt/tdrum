@@ -1,13 +1,8 @@
 use std::collections::HashMap;
-use std::sync::Arc;
-use std::sync::atomic::AtomicPtr;
 
 use pyo3::prelude::*;
 
-use super::fader::Fader;
 use super::samples::{LevelSample, Sample, SampleHandle};
-
-pub type InstrumentMap = [AtomicPtr<Instrument>; 128];
 
 #[pyclass]
 pub struct InstrumentRef {
@@ -35,7 +30,7 @@ impl Instrument {
 }
 
 impl Instrument {
-    pub fn create(name: &str) -> Instrument {
+    pub fn create(_name: &str) -> Instrument {
         Instrument {
             sample_store: HashMap::new(),
             sample_levels: Vec::new()
@@ -49,8 +44,5 @@ impl Instrument{
         println!("Adding sample");
         //self.sample_store.insert(path, sample.sample.clone());
         self.sample_levels.push(LevelSample::new(sample.sample.clone(), sample.trig));
-    }
-
-    fn set_velocity(&self, sample: i64, velocity: u8) {
     }
 }

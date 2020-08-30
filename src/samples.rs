@@ -122,7 +122,7 @@ impl std::iter::Iterator for PlayingSampleIterator {
 }
 
 
-pub fn load_sample(path: String, gain: f32) -> Result<SampleHandle, String> {
+pub fn load_sample(path: String, _gain: f32) -> Result<SampleHandle, String> {
     let c_path = CString::new(path.clone()).unwrap();
 
     let mut info = MaybeUninit::<sndfile_sys::SF_INFO>::uninit();

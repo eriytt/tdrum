@@ -72,24 +72,6 @@ impl Fader {
     fn clone(&self) -> Fader {
         Fader::initu32(&self.name, self.gain.load(Relaxed))
     }
-
-    #[allow(non_snake_case)]
-    fn addSource(&self, src: i64) {
-    }
-
-    #[allow(non_snake_case)]
-    fn setDownstream(&self, fader: i64) {
-    }
-
-
-    #[allow(non_snake_case)]
-    fn getGain(&self) -> PyResult<f32> {
-        Ok(0.0)
-    }
-
-    #[allow(non_snake_case)]
-    fn registerJackPorts(&self, client: i64) {
-    }
 }
 
 #[pyclass]

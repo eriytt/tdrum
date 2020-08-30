@@ -1,10 +1,7 @@
-use std::result::Result;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU32, AtomicPtr, AtomicU64};
-use std::sync::atomic::Ordering::{Relaxed, SeqCst};
+use std::sync::atomic::{AtomicPtr, AtomicU64};
+use std::sync::atomic::Ordering::Relaxed;
 use crossbeam_channel;
-use std::collections::HashMap;
-use std::ops::Deref;
 
 use pyo3::prelude::*;
 use pyo3::exceptions;
@@ -13,13 +10,13 @@ mod fader;
 use fader::{Fader, FaderRef};
 
 mod processor;
-use processor::{Processor, ConnectionMatrix, SharedState, ProcessorMessage, FaderSourceType};
+use processor::{Processor, SharedState, ProcessorMessage, FaderSourceType};
 
 mod samples;
-use samples::{Sample, LevelSample, SampleHandle};
+use samples::{Sample, SampleHandle};
 
 mod instrument;
-use instrument::{Instrument, InstrumentMap, InstrumentRef};
+use instrument::{Instrument, InstrumentRef};
 
 trait Source {
     fn fill(&self, iterator: &mut std::slice::IterMut<f32>);
@@ -33,14 +30,9 @@ enum SharedIdx {
 
 #[pyclass(dict)]
 struct Core {
-    instruments: Arc<HashMap<usize, Box<Instrument>>>,
-    master: Fader,
-    buses: Vec<Fader>,
     client: Option<jack::AsyncClient<(), Processor>>,
     drop: Option<Arc<[AtomicPtr<Sample>; 2]>>,
     play_queue: Option<crossbeam_channel::Sender<ProcessorMessage>>,
-    play_events: Vec<(u8, u8)>,
-    cm: Arc<AtomicPtr<ConnectionMatrix>>,
     gen: Arc<AtomicU64>,
     shidx: SharedIdx,
     shptr: Arc<AtomicPtr<SharedState>>,
@@ -83,7 +75,7 @@ impl Core {
         let mut generation = self.gen.load(Relaxed);
         loop {
             if generation & 1 == 0 {return;}
-            std::thread::sleep_ms(1);
+            std::thread::sleep(std::time::Duration::from_millis(1));
             let new_generation = self.gen.load(Relaxed);
 
             if new_generation != generation {return;}
@@ -107,38 +99,6 @@ impl Core {
         let s2 = self.get_shadow_state();
         f(s2);
     }
-
-    fn update_instrument(&mut self, note: u8, iref: &InstrumentRef) {
-        println!("Adding instrument for note {}", note);
-        let idx = iref.tcid;
-        let s1 = self.get_shadow_state();
-        self.with_swap_states(|s| {s.note_map.insert((note & 0xf), idx); ()});
-    }
-
-    fn update_bus(&mut self, name: &str, bus: &mut Fader) {
-        self.buses.push(bus.clone());
-    }
-
-    fn get_master(&self) -> Fader {
-        self.master.clone()
-    }
-
-    fn instrument_remove(&mut self, note: u8) {
-        unimplemented!();
-        //self.cur_instr[(note & 0xf) as usize].store(std::ptr::null_mut(), Relaxed);
-    }
-
-
-    fn rebuild_signal_chain(&self, master: &mut Fader) {
-        unimplemented!();
-        // let mut new_connection_matrix = ConnectionMatrix::new();
-        // let master_inputs = init_array!(AtomicPtr<Fader>, processor::MAX_INPUTS, AtomicPtr::default());
-        // master_inputs[0].store(master, Relaxed);
-        // new_connection_matrix.insert(master.name.clone(), master_inputs);
-
-        // self.cm.store(&mut new_connection_matrix , Relaxed);
-    }
-
 }
 
 #[pymethods]
@@ -149,14 +109,9 @@ impl Core {
         let state = Box::new(SharedState::new());
         let shadow = Box::new(SharedState::new());
         let mut core = Self {
-            instruments: Arc::new(HashMap::new()),
-            master: Fader::initu32("Master", 0),
-            buses: Vec::new(),
             client: None,
             drop: None,
             play_queue: None,
-            play_events: Vec::new(),
-            cm: Arc::new(AtomicPtr::default()),
             gen: Arc::new(AtomicU64::new(0)),
             shidx: SharedIdx::Shared1,
             shptr: Arc::new(AtomicPtr::default()),
@@ -184,11 +139,11 @@ impl Core {
             .register_port("in", jack::MidiIn::default())
             .unwrap();
 
-        let mut audio_output_port_left = client
+        let audio_output_port_left = client
             .register_port("out_l", jack::AudioOut::default())
             .unwrap();
 
-        let mut audio_output_port_right = client
+        let audio_output_port_right = client
             .register_port("out_r", jack::AudioOut::default())
             .unwrap();
 
@@ -233,11 +188,11 @@ impl Core {
         }
 
         self.with_swap_states(|s| {
-            s.note_map.retain(|note, id| id != &instrument.tcid);
+            s.note_map.retain(|_note, id| id != &instrument.tcid);
             s.instr_map.remove(&instrument.tcid);
         });
 
-        let i = unsafe {Box::from_raw(instrument.tcid as *mut Instrument)}; // drop the instrument
+        drop(unsafe {Box::from_raw(instrument.tcid as *mut Instrument)});
     }
 
     fn instrument_set_note(&mut self, instrument: &InstrumentRef, note: u16) {
@@ -245,7 +200,7 @@ impl Core {
     }
 
     fn instrument_add_sample(&mut self, instrument: &InstrumentRef, sample: &mut SampleHandle) -> PyResult<()> {
-        let mut iptr = match self.get_shadow_state().instr_map.get(&instrument.tcid) {
+        let iptr = match self.get_shadow_state().instr_map.get(&instrument.tcid) {
             Some(iptr) => *iptr,
             None => return Err(PyErr::new::<exceptions::LookupError, _>("Instrument not found"))
         };
@@ -258,7 +213,7 @@ impl Core {
         Ok(())
     }
 
-    fn instrument_get_fader(&self, instrument: &InstrumentRef)  -> PyResult<(FaderRef)> {
+    fn instrument_get_fader(&self, instrument: &InstrumentRef)  -> PyResult<FaderRef> {
         let src_entry = self.get_shadow_state().find_instrument_fader_idx(instrument);
         match src_entry {
             Some(k) => Ok(FaderRef{tcid: k}),
@@ -266,14 +221,20 @@ impl Core {
         }
     }
 
-    fn instrument_play(&mut self, instr: &InstrumentRef, velocity: u8) {
+    fn instrument_play(&mut self, instr: &InstrumentRef, velocity: u8) -> PyResult<bool> {
         let idx = instr.tcid;
         println!("Playing instrument {} with velocity {}", idx, velocity);
-        if let Some(sender) = &self.play_queue {
-            sender.send(ProcessorMessage::PlayInstrument {
-                iptr: idx,
-                velocity: velocity
-            });
+
+        match &self.play_queue {
+            None => Ok(false),
+            Some(sender) =>
+                match sender.send(ProcessorMessage::PlayInstrument {
+                    iptr: idx,
+                    velocity: velocity
+                }) {
+                    Ok(_) => Ok(true),
+                    Err(e)    => Err(PyErr::new::<exceptions::RuntimeError, _>(format!("Failed to play instrument '{}'", e))),
+                }
         }
     }
 
@@ -299,7 +260,7 @@ impl Core {
             s.fader_map.remove(&fader_ref.tcid);
         });
 
-        let i = unsafe {Box::from_raw(fader_ref.tcid as *mut Fader)}; // drop the instrument
+        drop(unsafe {Box::from_raw(fader_ref.tcid as *mut Fader)});
     }
 
     fn fader_get_internal_id(&mut self, fader_ref: &FaderRef) -> PyResult<usize> {
@@ -308,7 +269,7 @@ impl Core {
 
     fn fader_add_fader_src(&mut self, dst: &FaderRef, src: &FaderRef) {
         self.with_swap_states(|s| {
-            let mut srcs = s.fsrc_map.entry(dst.tcid).or_default();
+            let srcs = s.fsrc_map.entry(dst.tcid).or_default();
 
             if !srcs.iter().any(|s| s == &FaderSourceType::FaderSrc(src.tcid)) {
                 srcs.push(FaderSourceType::FaderSrc(src.tcid));
@@ -318,14 +279,14 @@ impl Core {
 
     fn fader_del_fader_src(&mut self, dst: &FaderRef, src: &FaderRef) {
         self.with_swap_states(|s| {
-            let mut srcs = s.fsrc_map.entry(dst.tcid).or_default();
+            let srcs = s.fsrc_map.entry(dst.tcid).or_default();
             srcs.retain(|fs| fs != &FaderSourceType::FaderSrc(src.tcid))
         });
     }
 
     fn fader_add_instrument_src(&mut self, dst: &FaderRef, src: &InstrumentRef) {
         self.with_swap_states(|s| {
-            let mut srcs = s.fsrc_map.entry(dst.tcid).or_default();
+            let srcs = s.fsrc_map.entry(dst.tcid).or_default();
 
             if !srcs.iter().any(|s| s == &FaderSourceType::InstrumentSrc(src.tcid)) {
                 srcs.push(FaderSourceType::InstrumentSrc(src.tcid));
@@ -339,7 +300,7 @@ impl Core {
 
     fn fader_set_gain(&mut self, fader: &FaderRef, gain: f32) {
         let state = self.get_shared_state();
-        if let Some(mut ptr) = state.fader_map.get(&fader.tcid) {
+        if let Some(ptr) = state.fader_map.get(&fader.tcid) {
             let f: &Fader = unsafe{&**ptr};
             f.set_gain(gain);
         }
@@ -348,7 +309,7 @@ impl Core {
     fn fader_get_gain(&mut self, fader: &FaderRef) -> PyResult<f32> {
         let state = self.get_shared_state();
         match state.fader_map.get(&fader.tcid) {
-            Some(mut ptr) => {
+            Some(ptr) => {
                 let f: &Fader = unsafe{&**ptr};
                 Ok(f.get_gain())
             }
@@ -358,7 +319,7 @@ impl Core {
 
     fn fader_set_panning(&mut self, fader: &FaderRef, panning: f32) {
         let state = self.get_shared_state();
-        if let Some(mut ptr) = state.fader_map.get(&fader.tcid) {
+        if let Some(ptr) = state.fader_map.get(&fader.tcid) {
             let f: &Fader = unsafe{&**ptr};
             f.set_panning(panning);
         }

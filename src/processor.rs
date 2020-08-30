@@ -1,19 +1,16 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicPtr, AtomicU64};
 use std::sync::atomic::Ordering::Relaxed;
-use std::sync::mpsc;
 use std::collections::HashMap;
 use std::ops::Deref;
 
-use super::instrument::{Instrument, InstrumentMap, InstrumentRef};
-use super::samples::{PlayingSample, LevelSample, Sample};
+use super::instrument::{Instrument, InstrumentRef};
+use super::samples::{PlayingSample, Sample};
 use super::fader::{Fader, FaderRef};
 
 pub const MAX_INPUTS: usize = 10;
 
 pub type ConnectionMatrix = HashMap<String, [AtomicPtr<Fader>; MAX_INPUTS]>;
-
-type PlayQueue = Arc<[AtomicPtr<(u8, u8)>; 2]>;
 
 #[derive(PartialEq, Debug)]
 pub enum FaderSourceType {
@@ -28,17 +25,17 @@ pub enum Channel {
 }
 
 struct VecZip {
-    vec: Vec<Box<Iterator<Item = f32>>>
+    vec: Vec<Box<dyn Iterator<Item = f32>>>
 }
 
 impl VecZip {
-    fn from_vec(ivec: Vec<Box<Iterator<Item = f32>>>) -> Self{
+    fn from_vec(ivec: Vec<Box<dyn Iterator<Item = f32>>>) -> Self{
         Self {
             vec: ivec
         }
     }
 
-    fn from_iter(iter: impl Iterator<Item = Box<Iterator<Item = f32> > >) -> Self {
+    fn from_iter(iter: impl Iterator<Item = Box<dyn Iterator<Item = f32> > >) -> Self {
         use std::iter::FromIterator;
         Self::from_vec(Vec::from_iter(iter))
     }
@@ -49,7 +46,7 @@ impl Iterator for VecZip {
     type Item = f32;
 
     fn next(&mut self) -> Option<f32> {
-        let v: Vec<Option<f32>> = self.vec.iter_mut().map(|mut i| i.next()).collect();
+        let v: Vec<Option<f32>> = self.vec.iter_mut().map(|i| i.next()).collect();
         match v.iter().any(|o| match o {None => true, _ => false}) {
             false => Some(v.iter().map(|o| match o {
                 Some(f) => *f,
@@ -91,12 +88,12 @@ impl SharedState {
     pub fn find_instrument_fader_idx(&self, instrument: &InstrumentRef)
                                  -> Option<usize> {
         self.fsrc_map.iter().find(
-            |(k, src_vec)| src_vec.iter().any(
+            |(_k, src_vec)| src_vec.iter().any(
                 |s| match s {
-                    FaderSourceType::FaderSrc(idx) => false,
+                    FaderSourceType::FaderSrc(_idx) => false,
                     FaderSourceType::InstrumentSrc(idx) => idx == &instrument.tcid
                 }
-            )).map(|(k, v)| *k)
+            )).map(|(k, _)| *k)
     }
 
     pub fn delete_fader_source(&mut self, fader: &FaderRef) {
@@ -146,7 +143,6 @@ pub struct Processor {
     audio_port_right: jack::Port<jack::AudioOut>,
     samples: HashMap<usize, Vec<PlayingSample>>,
     drop: Arc<[AtomicPtr<Sample>; 2]>,
-    time: f64,
     generation: Arc<AtomicU64>,
     shared: Arc<AtomicPtr<SharedState>>,
     messages: crossbeam_channel::Receiver<ProcessorMessage>,
@@ -166,7 +162,6 @@ impl Processor {
             audio_port_right: audio_port_right,
             samples: HashMap::new(),
             drop: Arc::new([AtomicPtr::default(), AtomicPtr::default()]),
-            time: 0.0,
             generation: generation,
             shared: shared,
             messages: rx,
@@ -180,6 +175,7 @@ impl Processor {
         }
     }
 
+    #[allow(dead_code)]
     fn get_fader_for_index(&self, idx: usize, state: &SharedState) -> Option<&Fader> {
         match state.fader_map.get(&idx) {
             None => None,
@@ -199,7 +195,7 @@ impl Processor {
     }
 
     fn get_fader_src_iter(&self, fidx: usize, channel: &Channel, state: &SharedState)
-                          -> Box<Iterator<Item = f32>> {
+                          -> Box<dyn Iterator<Item = f32>> {
         let (gain, pan) = match state.fader_map.get(&fidx) {
             None => (0.0f32, 0.5),
             Some(f) => {
@@ -228,7 +224,7 @@ impl Processor {
     }
 
 
-    fn get_instr_src_iter(&self, iidx: usize) -> Box<Iterator<Item = f32>> {
+    fn get_instr_src_iter(&self, iidx: usize) -> Box<dyn Iterator<Item = f32>> {
         match self.samples.get(&iidx) {
             None => Box::new(std::iter::repeat(0.0f32)),
             Some(v) => {
