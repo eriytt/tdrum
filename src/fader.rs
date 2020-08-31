@@ -63,10 +63,8 @@ impl Fader {
 #[pymethods]
 impl Fader {
     #[new]
-    fn new(obj: &PyRawObject, name: &str) {
-        obj.init({
-            Fader::initu32(name, 0)
-        });
+    fn new(name: &str) -> Self {
+        Fader::initu32(name, 0)
     }
 
     fn clone(&self) -> Fader {

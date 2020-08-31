@@ -28,7 +28,7 @@ enum SharedIdx {
     Shared2
 }
 
-#[pyclass(dict)]
+#[pyclass(unsendable)]
 struct Core {
     client: Option<jack::AsyncClient<(), Processor>>,
     drop: Option<Arc<[AtomicPtr<Sample>; 2]>>,
@@ -105,7 +105,7 @@ impl Core {
 impl Core {
 
     #[new]
-    fn new(obj: &PyRawObject) {
+    fn new() -> Self {
         let state = Box::new(SharedState::new());
         let shadow = Box::new(SharedState::new());
         let mut core = Self {
@@ -125,10 +125,7 @@ impl Core {
         core.get_shadow_state().set_master(mref);
 
         core.shptr.store(core.shared1, Relaxed);
-
-        obj.init({
-            core
-        });
+        core
     }
 
     fn register_jack(&mut self) -> PyResult<()> {
