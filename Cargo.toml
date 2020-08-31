@@ -11,7 +11,7 @@ name = "tdrum"
 crate-type = ["cdylib"]
 
 [dependencies]
-sndfile-sys = "0.2.0"
+sndfile = "0.0.4"
 jack = "0.6"
 crossbeam-channel = "0.4"
 

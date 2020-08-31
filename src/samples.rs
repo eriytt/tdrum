@@ -1,5 +1,5 @@
-use std::ffi::CString;
-use std::mem::MaybeUninit;
+extern crate sndfile;
+
 use std::sync::Arc;
 
 use pyo3::prelude::*;
@@ -123,29 +123,12 @@ impl std::iter::Iterator for PlayingSampleIterator {
 
 
 pub fn load_sample(path: String, _gain: f32) -> Result<SampleHandle, String> {
-    let c_path = CString::new(path.clone()).unwrap();
+    use sndfile::*;
 
-    let mut info = MaybeUninit::<sndfile_sys::SF_INFO>::uninit();
+    let mut snd = sndfile::OpenOptions::ReadOnly(ReadOptions::Auto).from_path(path).unwrap();
 
-    let fh = unsafe {sndfile_sys::sf_open(c_path.as_ptr(), sndfile_sys::SFM_READ, info.as_mut_ptr())};
-    if fh == std::ptr::null_mut() {
-        return Err(format!("sf_open({},...) failed", path))
-    }
-
-    let info = unsafe { info.assume_init() };
-
-    let items = info.frames * info.channels as i64;
-    let mut data = Vec::<f32>::with_capacity(items as usize);
-    unsafe {data.set_len(items as usize)};
-    let read_items = unsafe {sndfile_sys::sf_read_float(fh, data.as_mut_ptr(), items)};
-    unsafe {sndfile_sys::sf_close(fh)};
-
-    if read_items != items { panic!("Read error")} // TODO: throw IOError
-
-    println!("Loading sample of size {} ({})", items, data.len());
-    let sample = Sample::new(data, items as usize);
-    // self.sample_store.insert(path, sample.clone());
-    // self.sample_levels.push(LevelSample::new(sample.clone(), 127));
+    let data: Vec<f32> = snd.read_all_to_vec().unwrap();
+    let sample = Sample::new(data, snd.len().unwrap() as usize);
 
     // TODO: this is a wierd way to have a handle
     Ok(SampleHandle::from_sample(&sample))
