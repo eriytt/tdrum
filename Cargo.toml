@@ -18,6 +18,3 @@ crossbeam-channel = "0.4"
 [dependencies.pyo3]
 version = "0.11.1"
 features = ["extension-module"]
-
-[build]
-rustflags = ["-C", "link-arg=-sndfile"]
